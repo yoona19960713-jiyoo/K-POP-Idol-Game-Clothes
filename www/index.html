@@ -300,11 +300,11 @@ const RAR=["N","R","SR","SSR"];
 const TYPES={group:"團體服(全員)",solo:"個人造型"};
 const MEM_IDS=["m1","m2","m3","m4","m5"], MEM_DEF=["成員一","成員二","成員三","成員四","成員五"];
 const PROFILES=[
-  [/藝瑟|Yeseul/i,"隊長、主唱。黑色長直髮內層挑染紫。代表色紫(#7B4FBF)。168 cm,高挑優雅、腿長、上圍豐滿。舞台上暗黑哥德的神祕主唱,私下溫和沉穩。適合長版、蕾絲、鍊條、優雅剪裁。"],
-  [/泰梨|Taeri/i,"主 Rapper、領舞。深紅色鮑伯頭、灰色眼睛。代表色紅(#C8102E)。167 cm,結實曲線運動型。冷豔 girl crush、賽博龐克。適合皮革、金屬扣環、短版外套、褲裝。"],
-  [/日和|Hiyori/i,"主舞,日籍,古典芭蕾出身。深棕色低盤髮。代表色香檳金(#E3CFA6)。165 cm,纖細健康的舞者體態、上圍適中。古典優雅。適合緞帶、薄紗、珍珠、方便舞動的裙裝。"],
-  [/夏恩|Haeun/i,"領唱、門面、C 位。及肩栗棕色波浪髮。代表色珊瑚粉(#F28C82)。163 cm,沙漏曲線身材。華麗溫暖。適合珍珠、荷葉邊、合身剪裁、閃耀材質,常站中間位置。"],
-  [/河嵐|Haram/i,"副 Rapper、綜藝擔當、老么。亂翹層次短髮。代表色萊姆綠(#A8D84E)。160 cm,嬌小曲線、全團上圍最豐滿。活力運動風。適合短版、牛仔、運動元素、亮色、方便跳動的款式。"],
+  [/藝瑟|Yeseul/i,"隊長、領唱、領舞(原型 Dreamcatcher JiU)。黑色長直髮內層挑染紫。代表色紫(#7B4FBF)。168 cm,高挑優雅、腿長、上圍豐滿。舞台上暗黑哥德的神祕感,私下開朗愛笑的團媽,私人物品偏愛粉紅色。適合長版、蕾絲、鍊條、優雅剪裁。"],
+  [/泰梨|Taeri/i,"主 Rapper、領舞(原型 aespa Karina)。深紅色鮑伯頭、灰色眼睛。代表色紅(#C8102E)。167 cm,結實曲線運動型。外表冷豔完美像 AI,私下害羞傻氣。適合皮革、金屬扣環、短版外套、褲裝、未來感材質。"],
+  [/日和|Hiyori/i,"主舞、副唱,日籍,芭蕾出身(原型 LE SSERAFIM 中村一葉)。深棕色低盤髮。代表色香檳金(#E3CFA6)。165 cm,纖細健康的舞者體態、上圍適中。優雅但開朗外向,暱稱天鵝。適合緞帶、薄紗、芭蕾元素、方便舞動的裙裝。"],
+  [/夏恩|Haeun/i,"門面、C 位、副 Rapper(原型 少女時代 潤娥)。及肩栗棕色波浪髮。代表色珊瑚粉(#F28C82)。163 cm,沙漏曲線身材。國民初戀型的開朗隨和,常站中間位置。適合清新又華麗的設計、珍珠、合身剪裁、閃耀材質。"],
+  [/河嵐|Haram/i,"主唱、綜藝擔當、老么(原型 Apink 鄭恩地)。亂翹層次短髮。代表色萊姆綠(#A8D84E)。160 cm,嬌小曲線、全團上圍最豐滿。直率大嗓門、有點男孩子氣、講濟州方言。適合運動元素、短版、牛仔、亮色,以及方便唱跳的款式。"],
 ];
 let members=MEM_IDS.map((id,i)=>({id,name:MEM_DEF[i],en:"",gen:"",profile:"",current:""}));
 let stdBase={img:"",marks:{}}; // 舊版欄位,保留相容
@@ -313,7 +313,8 @@ const memberById=id=>members.find(m=>m.id===id);
 const mLabel=m=>m.name+(m.en?`(${m.en})`:"");
 const isLook=it=>it&&it.kind==="look";
 const looks=()=>items.filter(isLook);
-function fillProfiles(){for(const m of members) if(!m.profile){const p=PROFILES.find(([re])=>re.test(m.name+" "+m.en));if(p) m.profile=p[1]}}
+const OLD_PROFILES=["隊長、主唱。黑色長直髮內層挑染紫。代表色紫(#7B4FBF)。168 cm,高挑優雅、腿長、上圍豐滿。舞台上暗黑哥德的神祕主唱,私下溫和沉穩。適合長版、蕾絲、鍊條、優雅剪裁。", "主 Rapper、領舞。深紅色鮑伯頭、灰色眼睛。代表色紅(#C8102E)。167 cm,結實曲線運動型。冷豔 girl crush、賽博龐克。適合皮革、金屬扣環、短版外套、褲裝。", "主舞,日籍,古典芭蕾出身。深棕色低盤髮。代表色香檳金(#E3CFA6)。165 cm,纖細健康的舞者體態、上圍適中。古典優雅。適合緞帶、薄紗、珍珠、方便舞動的裙裝。", "領唱、門面、C 位。及肩栗棕色波浪髮。代表色珊瑚粉(#F28C82)。163 cm,沙漏曲線身材。華麗溫暖。適合珍珠、荷葉邊、合身剪裁、閃耀材質,常站中間位置。", "副 Rapper、綜藝擔當、老么。亂翹層次短髮。代表色萊姆綠(#A8D84E)。160 cm,嬌小曲線、全團上圍最豐滿。活力運動風。適合短版、牛仔、運動元素、亮色、方便跳動的款式。"];
+function fillProfiles(){for(const m of members) if(!m.profile||OLD_PROFILES.includes(m.profile)){const p=PROFILES.find(([re])=>re.test(m.name+" "+m.en));if(p) m.profile=p[1]}}
 async function saveMeta(){try{await IDB.putMeta("members",members);await IDB.putMeta("std",stdBase);await syMetaTouch()}catch(e){toast("儲存失敗")}}
 function pickImage(cb,max=1536){
   const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
