@@ -223,6 +223,13 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
 </div>
 
 <dialog id="dlg"><div class="in" id="dlgIn"></div></dialog>
+<dialog id="updDlg"><div class="in">
+  <h2 style="margin:0 0 6px">有新版本</h2>
+  <p id="updInfo" style="margin:0"></p>
+  <p class="note" id="updNotes" style="white-space:pre-wrap"></p>
+  <p class="note" id="updHow"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="updLater">稍後</button><button class="btn" id="updBk">先匯出備份</button><button class="btn pri" id="updGo"></button></div>
+</div></dialog>
 <dialog id="fitDlg"><div class="in">
   <div class="row" style="justify-content:space-between"><h2 style="margin:0" id="fitTitle"></h2><button class="btn sm" id="fitClose">關閉</button></div>
   <p class="note" id="fitState"></p>
@@ -232,7 +239,7 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
   <div class="row" style="margin-top:10px"><button class="btn" id="fitReset">重設微調</button><button class="btn pri" id="fitOk">確認採用</button></div>
   <div id="fitCustom">
     <h3 style="font-size:15px;margin:18px 0 4px">專屬版</h3>
-    <p class="note">自動變形不自然時,把這段提示詞連同<b id="fitWho"></b>的生圖用底模一起交給 GPT,切好圖後上傳。切圖請保留整張畫布大小(透明背景),不要裁切。上傳專屬版後就不再自動變形,但仍可用上面的滑桿微調。</p>
+    <p class="note">自動變形不自然時,把這段提示詞連同<b id="fitWho"></b>的生圖用底模一起交給 GPT,切好圖後上傳。直接上傳 GPT 生成的「只剩單品、背景純色」原圖,工坊會自動去背,不要裁切。上傳專屬版後就不再自動變形,但仍可用上面的滑桿微調。</p>
     <textarea readonly id="fitPrompt" style="width:100%;min-height:100px;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
     <div class="row" style="margin-top:6px"><button class="btn sm" id="fitCopy">複製專屬提示詞</button><button class="btn sm" id="fitUpF">上傳專屬切圖</button><button class="btn sm" id="fitUpB">上傳專屬後層</button><button class="btn sm danger" id="fitRm">移除專屬版</button></div>
     <input type="file" id="fitFile" accept="image/png,image/webp" class="hidden">
@@ -262,7 +269,7 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
   <p class="note">資料存在這台裝置。要在手機和電腦之間同步,在一邊匯出備份,另一邊匯入即可;同編號的單品會保留較新的版本。</p>
   <div class="row"><button class="btn" id="bkOut">匯出備份</button><button class="btn" id="bkIn">匯入備份</button><input type="file" id="bkFile" accept=".json,application/json" class="hidden"></div>
   <div id="apkBox" style="margin-top:20px"><h3 style="font-size:15px;margin:0 0 4px">手機安裝版</h3><p class="note">Android 手機可以下載安裝檔,裝成獨立 App。</p><a class="btn" href="KPOP-Clothes.apk" download style="display:inline-block;text-decoration:none">下載 APK</a></div>
-  <p class="note" id="verNote" style="margin-top:16px"></p>
+  <div class="row" style="margin-top:16px"><span class="note" id="verNote"></span><button class="btn sm" id="updCheck">檢查更新</button></div>
 </div></dialog>
 
 <script src="version.js"></script>
@@ -308,7 +315,7 @@ const SHEET_LIST=Object.entries(FILES).flatMap(([f,F])=>Object.entries(F.sheets)
 
 /* ---------- 提示詞範本 ---------- */
 const BASE="Use the attached image as the exact base. Keep the pose, body, proportions, face, hair, framing, lighting and green background completely identical — do not move or redraw anything else.";
-function buildPrompt(it){
+function buildDressPrompt(it){
   const S=FILES[it.file]?.sheets[it.sheet]; if(!S) return "";
   if(S.noGen) return "(程式上色,不需生圖)";
   const d=(it.desc||"").trim()||"(description)";
@@ -322,10 +329,24 @@ function buildPrompt(it){
     case "socks": return `${BASE} Only change her socks to: ${d}, replacing the white ankle socks. Keep everything else unchanged.${nologo}`;
     case "hosiery": return `${BASE} Only add: ${d} on her legs, under the white shorts, replacing the white socks. Keep everything else unchanged.${nologo}`;
     case "long": case "mid": case "short": case "updo":
-      return `Use the attached image as the exact base. Keep her face, expression, body, pose, outfit, framing, lighting and green background completely identical. Only change her hairstyle to: ${d}. No hair accessories unless described.`;
+      return `Use the attached image as the exact base. Keep her face, expression, body, pose, outfit, framing, lighting and green background completely identical. Give her this hairstyle, replacing any existing hair: ${d}. No hair accessories unless described.`;
     case "special": return `Use the attached image as the exact base. Keep everything completely identical. Only add this makeup detail on her face: ${d}.`;
     default: return `${BASE} Only add this accessory: ${d}. Keep her outfit and everything else unchanged.${nologo}`;
   }
+}
+/* 去背色:預設綠色;衣物本身是綠色系就改洋紅,綠和粉紫都有就改藍 */
+const KEYS={green:{n:"綠",w:"pure chroma-key green (#00FF00)"},magenta:{n:"洋紅",w:"pure magenta (#FF00FF)"},blue:{n:"藍",w:"pure blue (#0000FF)"}};
+function autoKey(it){
+  const t=[it.colorMain,it.colorSub,it.desc,it.name].join(" ");
+  const gr=/綠|green|lime|olive|mint|teal|emerald|khaki|sage|chartreuse/i.test(t), pk=/粉|紫|洋紅|桃|pink|purple|magenta|violet|lilac|lavender|fuchsia|rose/i.test(t);
+  return gr&&pk?"blue":gr?"magenta":"green";
+}
+const keyOf=it=>KEYS[it.key]?it.key:autoKey(it);
+function buildPrompt(it){
+  const base=buildDressPrompt(it); const S=FILES[it.file]?.sheets[it.sheet];
+  if(!S||S.noGen) return base;
+  const what=it.file==="hair"?"her new hairstyle (all of her hair)":it.sheet==="special"?"the added makeup details":"the newly added item";
+  return `${base} Then output ONLY ${what}: erase her face, skin, body, the white clothes and everything else, and fill all of it with flat solid ${KEYS[keyOf(it)].w}. Keep ${what} at exactly the same position, size, shape and angle as when she was wearing it, on the same canvas size and framing. No shadows on the background.`;
 }
 
 /* ---------- 狀態 ---------- */
@@ -541,7 +562,7 @@ function bindEditor(root,getItem,onChange){
     card.querySelectorAll("[data-ax]").forEach(el=>el.addEventListener("input",()=>{const v=+el.value;it.attrs[el.dataset.ax]=v;el.nextElementSibling.nextElementSibling.textContent=(v>0?"+":"")+v;refresh()}));
     card.querySelectorAll("[data-occ]").forEach(el=>el.onclick=()=>{const o=el.dataset.occ;it.occasions=it.occasions.includes(o)?it.occasions.filter(x=>x!==o):[...it.occasions,o];el.setAttribute("aria-pressed",it.occasions.includes(o));refresh()});
     card.querySelector("[data-copy]").onclick=()=>copyText(card.querySelector("[data-prompt]"));
-    card.querySelectorAll("[data-img]").forEach(b=>b.onclick=()=>pickImage(url=>{it[b.dataset.img]=url;onChange&&onChange(it,true)}));
+    card.querySelectorAll("[data-img]").forEach(b=>b.onclick=()=>pickImage(url=>{it[b.dataset.img]=url;onChange&&onChange(it,true)},1536,keyOf(it)));
     card.querySelectorAll("[data-imgclr]").forEach(b=>b.onclick=()=>{it[b.dataset.imgclr]="";onChange&&onChange(it,true)});
   });
 }
@@ -678,15 +699,18 @@ function imgRowHTML(it){
   const hair=it.file==="hair";
   const box=(k,l)=>`<div class="imgbox">${it[k]?`<img src="${it[k]}" alt="">`:`<span class="ph"></span>`}<span>${l}</span>
     <div class="row"><button type="button" class="btn sm" data-img="${k}">上傳</button>${it[k]?`<button type="button" class="btn sm danger" data-imgclr="${k}">移除</button>`:""}</div></div>`;
-  return `<label class="lbl">標準切圖(在標準底模上生成後切好、保留整張畫布的透明 PNG)</label><div class="imgrow">${box("stdFront",hair?"前髮層":"切圖")}${box("stdBack",hair?"後髮層":"後層(選用,例如披風背面)")}</div>`;
+  const ak=autoKey(it), own=it.scope&&it.scope!=="all";
+  return `<label class="lbl">${own?`專屬切圖:提示詞要附上「${esc(memberById(it.scope)?.name||"")}」的生圖用底模`:"標準切圖:提示詞要附上標準底模"};把 GPT 生成的「只剩單品、背景純色」原圖直接上傳,工坊會自動去背</label>
+    <label class="note row" style="gap:6px;margin-top:4px">去背色<select data-f="key" style="width:auto;padding:4px 8px"><option value="" ${!it.key?"selected":""}>自動(${KEYS[ak].n})</option>${Object.entries(KEYS).map(([k,v])=>`<option value="${k}" ${it.key===k?"selected":""}>${v.n}</option>`).join("")}</select><span>提示詞會跟著換成這個底色</span></label><div class="imgrow">${box("stdFront",hair?"前髮層":"切圖")}${box("stdBack",hair?"後髮層":"後層(選用,例如披風背面)")}</div>`;
 }
-function pickImage(cb,max=1536){
+function pickImage(cb,max=1536,key=""){
   const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
   inp.onchange=async()=>{const f=inp.files[0]; if(!f) return;
     try{const bmp=await createImageBitmap(f); const s=Math.min(1,max/Math.max(bmp.width,bmp.height));
       const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
       c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
-      let url=c.toDataURL("image/webp",0.92); if(!url.startsWith("data:image/webp")) url=c.toDataURL("image/png");
+      const out=key?Wardrobe.chromaKey(c,key):c;
+      let url=out.toDataURL("image/webp",0.92); if(!url.startsWith("data:image/webp")) url=out.toDataURL("image/png");
       await cb(url);
     }catch(e){toast("讀不到這張圖,請換一張")}};
   inp.click();
@@ -778,14 +802,15 @@ function layerFor(it,m,adjOverride){
   const z=(it.z!==""&&it.z!=null&&!isNaN(+it.z))?+it.z:(Wardrobe.Z[it.sheet]??50);
   const zBack=Wardrobe.Z_BACK[it.sheet]??15;
   if(v.front) return {layer:{front:v.front,back:v.back,z,zBack,warp:false,adj}};
-  if(it.stdFront) return {layer:{front:it.stdFront,back:it.stdBack,z,zBack,warp:true,adj}};
+  const own=it.scope&&it.scope!=="all"; // 專屬單品是在該成員自己的底模上生成的,不用變形
+  if(it.stdFront) return {layer:{front:it.stdFront,back:it.stdBack,z,zBack,warp:!own,adj}};
   return {};
 }
 async function composeFor(cv,m,codes,over){
   const layers=[],makeup=[];
   for(const c of codes){const it=items.find(x=>x.code===c); if(!it) continue;
     const r=layerFor(it,m,over&&over.code===c?over.adj:null); if(r.layer) layers.push(r.layer); if(r.makeup) makeup.push(...r.makeup)}
-  return Wardrobe.compose(cv,{body:m.body||m.gen,stdMarks:stdBase.marks,marks:m.marks,layers,makeup,width:600});
+  return Wardrobe.compose(cv,{body:m.body||m.gen,bodyKey:"green",stdMarks:stdBase.marks,marks:m.marks,layers,makeup,width:600});
 }
 function placeholder(cv,txt){cv.width=400;cv.height=600;const g=cv.getContext("2d");g.clearRect(0,0,400,600);
   g.fillStyle=getComputedStyle(document.body).color;g.globalAlpha=.55;g.font="16px sans-serif";g.textAlign="center";g.fillText(txt,200,300);g.globalAlpha=1}
@@ -847,8 +872,9 @@ $("#fitOk").onclick=async()=>{await saveVariant({...fit.adj,ok:true});$("#fitDlg
 $("#fitClose").onclick=()=>$("#fitDlg").close();
 $("#fitDlg").addEventListener("close",()=>{if(view!=="lib") renderMem()});
 $("#fitCopy").onclick=()=>copyText($("#fitPrompt"));
-$("#fitUpF").onclick=()=>pickImage(async url=>{await saveVariant({front:url,...fit.adj});fitStateText();drawFit();toast("已上傳專屬切圖")});
-$("#fitUpB").onclick=()=>pickImage(async url=>{await saveVariant({back:url});fitStateText();drawFit();toast("已上傳專屬後層")});
+const fitKey=()=>keyOf(items.find(x=>x.code===fit.code)||{});
+$("#fitUpF").onclick=()=>pickImage(async url=>{await saveVariant({front:url,...fit.adj});fitStateText();drawFit();toast("已去背並上傳專屬切圖")},1536,fitKey());
+$("#fitUpB").onclick=()=>pickImage(async url=>{await saveVariant({back:url});fitStateText();drawFit();toast("已去背並上傳專屬後層")},1536,fitKey());
 $("#fitRm").onclick=async()=>{await saveVariant({front:"",back:"",ok:false});fitStateText();drawFit();toast("已移除專屬版,改回自動適配")};
 
 /* 關鍵點標記 */
@@ -1035,6 +1061,37 @@ $("#bkFile").onchange=async e=>{
   }catch(err){toast("這不是衣帽間工坊的備份檔")}
 };
 $("#verNote").textContent="版本 "+(window.APP_VERSION||"開發版");
+/* ---------- 版本更新檢查 ---------- */
+const isNative=!!window.Capacitor?.isNativePlatform?.();
+let updLatest=null, updLastCheck=0, updDismissed=0;
+async function checkUpdate(manual){
+  updLastCheck=Date.now();
+  if(!window.PAGES_URL||typeof window.APP_BUILD!=="number"){ if(manual) toast("開發版不檢查更新"); return }
+  try{
+    const r=await fetch(window.PAGES_URL+"version.json?t="+Date.now(),{cache:"no-store"}); if(!r.ok) throw 0;
+    const v=await r.json();
+    if(+v.build>window.APP_BUILD){ updLatest=v; if(manual||updDismissed!==+v.build) showUpdate(v) }
+    else if(manual) toast("已經是最新版本");
+  }catch(e){ if(manual) toast("檢查更新失敗,請確認網路") }
+}
+function showUpdate(v){
+  $("#updInfo").textContent=`目前 ${window.APP_VERSION},最新 ${v.version}。`;
+  $("#updNotes").textContent=v.notes?("更新內容:"+String(v.notes).trim().slice(0,400)):"";
+  $("#updHow").textContent=isNative?"按下後會用瀏覽器下載新的安裝檔,下載完點開安裝即可,資料會保留。第一次可能要允許瀏覽器「安裝不明應用程式」。":"按下後會重新載入成新版,資料會保留。";
+  $("#updGo").textContent=isNative?"下載新版":"立即更新";
+  const d=$("#updDlg"); if(!d.open) d.showModal();
+}
+$("#updLater").onclick=()=>{updDismissed=+(updLatest?.build||0);$("#updDlg").close()};
+$("#updBk").onclick=()=>$("#bkOut").click();
+$("#updGo").onclick=async()=>{
+  if(isNative){ const url=window.PAGES_URL+"KPOP-Clothes.apk?v="+(updLatest?.build||Date.now()); const w=window.open(url,"_blank"); if(!w) location.href=url; return }
+  $("#updGo").disabled=true; $("#updGo").textContent="更新中…";
+  try{ await Promise.all(["index.html","version.js","wardrobe.js","manifest.webmanifest"].map(u=>fetch(u,{cache:"reload"}).catch(()=>{}))) }catch(e){}
+  location.reload();
+};
+$("#updCheck").onclick=()=>checkUpdate(true);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&Date.now()-updLastCheck>30*60*1000) checkUpdate(false) });
+setTimeout(()=>checkUpdate(false),3000);
 if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
 
 /* ---------- 啟動 ---------- */

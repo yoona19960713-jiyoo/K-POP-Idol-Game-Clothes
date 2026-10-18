@@ -122,15 +122,38 @@ function drawMakeup(g,mk,m,W,H){
 function hexA(h,a){h=(h||"#d77a8a").replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");
   const n=parseInt(h,16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`}
 
+/* 去背:把純色背景(綠/洋紅/藍)轉成透明,並去掉邊緣色偏 */
+function chromaKey(src,key,lo=30,hi=90){
+  const c=document.createElement("canvas"); c.width=src.naturalWidth||src.width; c.height=src.naturalHeight||src.height;
+  const g=c.getContext("2d"); g.drawImage(src,0,0); const im=g.getImageData(0,0,c.width,c.height), d=im.data;
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i],gg=d[i+1],b=d[i+2],k;
+    if(key==="magenta") k=Math.min(r,b)-gg; else if(key==="blue") k=b-Math.max(r,gg); else k=gg-Math.max(r,b);
+    if(k<=lo) continue;
+    const a=k>=hi?0:1-(k-lo)/(hi-lo);
+    if(key==="magenta"){const m=Math.min(r,b)-gg;d[i]=r-m;d[i+2]=b-m}
+    else if(key==="blue"){d[i+2]=Math.max(r,gg)}
+    else{d[i+1]=Math.max(r,b)}
+    d[i+3]=Math.round(d[i+3]*a);
+  }
+  g.putImageData(im,0,0); return c;
+}
+const keyedCache=new Map();
+async function keyedImage(src,key){
+  const id=src+"|"+key; if(keyedCache.has(id)) return keyedCache.get(id);
+  const p=loadImage(src).then(im=>im?chromaKey(im,key):null); keyedCache.set(id,p); return p;
+}
+
 /* 主函式
-   opts.body      身體層圖片(成員的組裝用底模)
+   opts.body      身體層圖片(成員的組裝用底模);opts.bodyKey 給 "green" 等色時先去背
    opts.stdMarks  標準底模的關鍵點;opts.marks 成員的關鍵點
    opts.layers    [{front,back,z,zBack,warp,adj:{dx,dy,s,r}}]
    opts.makeup    [{kind:"eye"|"lip"|"cheek",hex,adj}]
    opts.width     輸出寬度(高度依身體層比例) */
 async function compose(canvas,opts){
-  const body=await loadImage(opts.body);
-  const W=opts.width||600, H=body?Math.round(W*body.naturalHeight/body.naturalWidth):Math.round(W*1.5);
+  const body=opts.bodyKey?await keyedImage(opts.body,opts.bodyKey):await loadImage(opts.body);
+  const bw=body?(body.naturalWidth||body.width):2, bh=body?(body.naturalHeight||body.height):3;
+  const W=opts.width||600, H=Math.round(W*bh/bw);
   const sm=fill(opts.stdMarks), dm=fill(opts.marks);
   const list=[];
   if(body) list.push({z:Z_BODY,draw:g=>g.drawImage(body,0,0,W,H)});
@@ -150,5 +173,5 @@ async function compose(canvas,opts){
   return canvas;
 }
 
-global.Wardrobe={MARKS,BODY_KEYS,Z,Z_BACK,Z_BODY,Z_MAKEUP,defaultMarks,fill,loadImage,compose};
+global.Wardrobe={MARKS,BODY_KEYS,Z,Z_BACK,Z_BODY,Z_MAKEUP,defaultMarks,fill,loadImage,chromaKey,compose};
 })(window);
