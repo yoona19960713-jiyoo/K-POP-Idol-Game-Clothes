@@ -39,7 +39,15 @@ jobs:
           java-version: 21
 
       - name: 寫入版本號
-        run: echo "window.APP_VERSION = \"1.0.${{ github.run_number }}\";" > www/version.js
+        env:
+          NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PAGES="https://${OWNER}.github.io/${{ github.event.repository.name }}/"
+          N=${{ github.run_number }}
+          printf 'window.APP_VERSION = "1.0.%s";\nwindow.APP_BUILD = %s;\nwindow.PAGES_URL = "%s";\n' "$N" "$N" "$PAGES" > www/version.js
+          jq -n --arg v "1.0.$N" --argjson b "$N" --arg n "${NOTES:-}" '{version:$v,build:$b,notes:$n}' > www/version.json
+          cat www/version.js www/version.json
 
       - name: 安裝套件
         run: npm install --no-audit --no-fund
