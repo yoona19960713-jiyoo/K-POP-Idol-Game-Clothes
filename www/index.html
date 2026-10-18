@@ -94,6 +94,7 @@ textarea{min-height:64px;resize:vertical}
 .empty{color:var(--muted);font-size:14px;padding:16px 0;text-align:center}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
 .hidden{display:none!important}
+#syncNote.err{color:var(--bad)}
 dialog{border:0;border-radius:16px;padding:0;background:var(--card);color:var(--ink);width:min(720px,94vw);max-height:90vh}
 dialog::backdrop{background:rgba(20,12,22,.5)}
 .keybar{margin-top:12px;background:var(--accent-soft);border-radius:12px;padding:10px 12px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -131,6 +132,7 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
     <div class="row" style="justify-content:space-between;align-items:flex-start"><h1>衣帽間素材工坊</h1><button class="btn sm" id="openSet">設定</button></div>
     <p>總庫管理單品設計;五位成員各自的頁面負責把單品適配到她身上、試穿組裝。</p>
     <div class="stats" id="stats"></div>
+    <div class="note" id="syncNote" style="margin-top:6px"></div>
     <nav class="topnav" id="topnav" aria-label="切換頁面"></nav>
     <div class="keybar hidden" id="keybar">還沒設定 Gemini API 金鑰,分析功能無法使用。<button class="btn sm pri" id="keyGo">前往設定</button></div>
   </header>
@@ -265,6 +267,15 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
   <details style="margin-top:12px"><summary class="note" style="cursor:pointer">怎麼取得金鑰?</summary>
     <ol class="steps"><li>用 Google 帳號登入 aistudio.google.com</li><li>左側點「Get API key」</li><li>按「Create API key」,複製那串文字</li><li>貼到上面的框,按儲存,再按測試連線</li></ol>
     <p class="note">免費層級有每分鐘與每日次數上限,每日額度約在台灣時間下午三、四點重置。免費層級送出的內容可能被 Google 用來改進產品,請不要放私人照片。</p></details>
+  <h3 style="font-size:15px;margin:20px 0 4px">雲端同步</h3>
+  <p class="note">網頁版和手機用同一個帳號登入,資料會自動雙向同步。需要你自己的 Firebase 專案(免費方案即可)。</p>
+  <label class="lbl" for="syCfgIn">Firebase 設定(貼上整段 firebaseConfig)</label>
+  <textarea id="syCfgIn" placeholder="const firebaseConfig = { apiKey: &quot;...&quot;, projectId: &quot;...&quot;, ... }"></textarea>
+  <div class="row" style="margin-top:6px"><button class="btn sm" id="sySaveCfg">儲存設定</button><span class="note" id="syCfgInfo"></span></div>
+  <div id="syIn" style="margin-top:10px"><div class="row"><input type="text" id="syEmail" placeholder="Email" autocomplete="username" style="flex:1;min-width:180px"><input type="password" id="syPw" placeholder="密碼(至少 6 字)" autocomplete="current-password" style="flex:1;min-width:150px"></div>
+    <div class="row" style="margin-top:6px"><button class="btn pri sm" id="sySignIn">登入</button><button class="btn sm" id="sySignUp">第一次使用:建立帳號</button></div></div>
+  <div id="syOut" class="hidden" style="margin-top:10px"><div class="row"><span id="syWho" class="note" style="flex:1"></span><button class="btn pri sm" id="syNow">立即同步</button><button class="btn sm" id="sySignOut">登出</button></div></div>
+  <div class="status" id="syStatus"></div>
   <h3 style="font-size:15px;margin:20px 0 4px">備份與同步</h3>
   <p class="note">資料存在這台裝置。要在手機和電腦之間同步,在一邊匯出備份,另一邊匯入即可;同編號的單品會保留較新的版本。</p>
   <div class="row"><button class="btn" id="bkOut">匯出備份</button><button class="btn" id="bkIn">匯入備份</button><input type="file" id="bkFile" accept=".json,application/json" class="hidden"></div>
@@ -591,7 +602,7 @@ function nextSetId(){let m=0;for(const it of items){const n=parseInt(String(it.s
   const id="SET-"+String(m+1).padStart(4,"0"); reserved.push(id); return id}
 async function saveItem(it){
   const {keep,...body}=it; body.updatedAt=Date.now();
-  await IDB.put(body);
+  await IDB.put(body); syMark(body.code);
   const i=items.findIndex(x=>x.code===body.code); if(i>=0) items[i]=body; else items.push(body);
   renderLib(); if(view!=="lib") renderMemLib();
 }
@@ -666,7 +677,7 @@ function openEditor(it){
   if(!dlg.open) dlg.showModal();
 }
 async function removeItem(code){
-  await IDB.del(code); items=items.filter(x=>x.code!==code); renderLib(); if(view!=="lib") renderMem();
+  await IDB.del(code); syTomb(code); items=items.filter(x=>x.code!==code); renderLib(); if(view!=="lib") renderMem();
 }
 
 /* ---------- 成員與適配 ---------- */
@@ -678,7 +689,7 @@ const memberById=id=>members.find(m=>m.id===id);
 const mLabel=m=>m.name+(m.en?`(${m.en})`:"");
 const NMARK=Wardrobe.MARKS.length;
 const VST=["沒有切圖","自動・待確認","已確認","專屬版"];
-async function saveMeta(){try{await IDB.putMeta("members",members);await IDB.putMeta("std",stdBase)}catch(e){toast("儲存失敗")}}
+async function saveMeta(){try{await IDB.putMeta("members",members);await IDB.putMeta("std",stdBase);await syMetaTouch()}catch(e){toast("儲存失敗")}}
 const appliesTo=(it,m)=>!it.scope||it.scope==="all"||it.scope===m.id;
 const isNoGen=it=>!!FILES[it.file]?.sheets[it.sheet]?.noGen;
 function vstat(it,mid){
@@ -1054,13 +1065,173 @@ $("#bkFile").onchange=async e=>{
   try{
     const o=JSON.parse(await f.text()); if(o.app!=="kpop-clothes"||!Array.isArray(o.items)) throw 0;
     let n=0; for(const it of o.items){ if(!it?.code) continue; const cur=items.find(x=>x.code===it.code);
-      if(!cur||(it.updatedAt||0)>(cur.updatedAt||0)){await IDB.put(it); n++} }
+      if(!cur||(it.updatedAt||0)>(cur.updatedAt||0)){await IDB.put(it); await syMark(it.code); n++} }
     if(o.meta){ if(Array.isArray(o.meta.members)) members=MEM_IDS.map((id,i)=>({...members[i],...(o.meta.members.find(x=>x.id===id)||{})}));
       if(o.meta.std) stdBase={img:"",marks:{},...o.meta.std}; await saveMeta(); }
     items=await IDB.all(); showView(view); toast(`匯入完成,更新了 ${n} 件`);
   }catch(err){toast("這不是衣帽間工坊的備份檔")}
 };
 $("#verNote").textContent="版本 "+(window.APP_VERSION||"開發版");
+/* ---------- 雲端同步(Firebase:Email 登入 + Firestore) ---------- */
+const SY_CFG="kpopSync.cfg", SY_AUTH="kpopSync.auth", SY_PULL="kpopSync.lastPull", SY_INIT="kpopSync.init";
+const syCfg=()=>{try{return JSON.parse(localStorage.getItem(SY_CFG)||"null")}catch(e){return null}};
+const syAuth=()=>{try{return JSON.parse(localStorage.getItem(SY_AUTH)||"null")}catch(e){return null}};
+let syTok=null, syBusy=false, syAgain=false, syTimer=0, syLast=0;
+const SY_ERR={EMAIL_EXISTS:"這個 Email 已經註冊過,請直接登入。",INVALID_LOGIN_CREDENTIALS:"Email 或密碼錯誤。",INVALID_PASSWORD:"Email 或密碼錯誤。",EMAIL_NOT_FOUND:"Email 或密碼錯誤。",
+  WEAK_PASSWORD:"密碼至少要 6 個字元。",INVALID_EMAIL:"Email 格式不對。",OPERATION_NOT_ALLOWED:"Firebase 還沒開啟「電子郵件/密碼」登入方式。",
+  API_KEY_INVALID:"Firebase 設定的 apiKey 不正確。",PERMISSION_DENIED:"Firestore 的安全規則擋住了,請照說明貼上規則。",NOT_FOUND:"找不到 Firestore 資料庫,請先在 Firebase 建立 Firestore。",
+  TOKEN_EXPIRED:"登入已過期,請重新登入。",USER_NOT_FOUND:"帳號不存在,請重新登入。",network:"連不上雲端,請確認網路。"};
+function syMsg(e){const c=String(e?.code||e?.message||e||"");for(const k of Object.keys(SY_ERR)) if(c.includes(k)) return SY_ERR[k];return "同步失敗:"+c.slice(0,80)}
+async function syJSON(url,opt){
+  let r; try{r=await fetch(url,opt)}catch(e){throw {code:"network"}}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){const m=j?.error?.message||j?.error?.status||(Array.isArray(j)&&j[0]?.error?.status)||("HTTP "+r.status);throw {code:String(m),status:r.status}}
+  return j;
+}
+async function sySignIn(email,pw,create){
+  const c=syCfg(); if(!c?.apiKey||!c?.projectId) throw {code:"請先貼上 Firebase 設定"};
+  const j=await syJSON(`https://identitytoolkit.googleapis.com/v1/accounts:${create?"signUp":"signInWithPassword"}?key=${encodeURIComponent(c.apiKey)}`,
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password:pw,returnSecureToken:true})});
+  localStorage.setItem(SY_AUTH,JSON.stringify({uid:j.localId,email:j.email,refreshToken:j.refreshToken}));
+  syTok={id:j.idToken,exp:Date.now()+(+j.expiresIn-60)*1000};
+}
+async function syToken(){
+  const a=syAuth(), c=syCfg(); if(!a||!c) throw {code:"未登入"};
+  if(syTok&&syTok.exp>Date.now()) return syTok.id;
+  const j=await syJSON(`https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(c.apiKey)}`,
+    {method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"grant_type=refresh_token&refresh_token="+encodeURIComponent(a.refreshToken)});
+  a.refreshToken=j.refresh_token; localStorage.setItem(SY_AUTH,JSON.stringify(a));
+  syTok={id:j.id_token,exp:Date.now()+(+j.expires_in-60)*1000}; return syTok.id;
+}
+function syBase(){const c=syCfg(),a=syAuth();return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(c.projectId)}/databases/(default)/documents/users/${a.uid}`}
+async function syFS(method,path,body){
+  const t=await syToken();
+  return syJSON(syBase()+path,{method,headers:{"Content-Type":"application/json",Authorization:"Bearer "+t},body:body?JSON.stringify(body):undefined});
+}
+async function syGetDoc(path){try{return await syFS("GET",path)}catch(e){if(e.status===404) return null;throw e}}
+const syStr=v=>({stringValue:v}), syInt=v=>({integerValue:String(Math.round(v||0))});
+
+/* 圖片:以內容雜湊存成獨立文件(超過 900KB 就切成多段) */
+async function syHash(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return [...new Uint8Array(b)].slice(0,16).map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function syStrip(obj,blobs){
+  if(typeof obj==="string"){ if(obj.startsWith("data:image")){const h=await syHash(obj);blobs.set(h,obj);return "blob:"+h} return obj }
+  if(Array.isArray(obj)){const o=[];for(const x of obj) o.push(await syStrip(x,blobs));return o}
+  if(obj&&typeof obj==="object"){const o={};for(const [k,v] of Object.entries(obj)) o[k]=await syStrip(v,blobs);return o}
+  return obj;
+}
+const syDown=new Map();
+async function syBlob(h){
+  if(syDown.has(h)) return syDown.get(h);
+  const first=await syGetDoc(`/blobs/${h}-0`); if(!first) return "";
+  const n=+first.fields.n.integerValue; let s=first.fields.d.stringValue;
+  for(let i=1;i<n;i++){const d=await syGetDoc(`/blobs/${h}-${i}`); s+=d?.fields?.d?.stringValue||""}
+  syDown.set(h,s); return s;
+}
+async function syRestore(obj){
+  if(typeof obj==="string") return obj.startsWith("blob:")?await syBlob(obj.slice(5)):obj;
+  if(Array.isArray(obj)){const o=[];for(const x of obj) o.push(await syRestore(x));return o}
+  if(obj&&typeof obj==="object"){const o={};for(const [k,v] of Object.entries(obj)) o[k]=await syRestore(v);return o}
+  return obj;
+}
+async function syUpBlobs(blobs){
+  const up=new Set(await IDB.getMeta("blobsUp")||[]);
+  for(const [h,s] of blobs){
+    if(up.has(h)) continue;
+    const parts=[];for(let i=0;i<s.length;i+=900000) parts.push(s.slice(i,i+900000));
+    for(let i=0;i<parts.length;i++) await syFS("PATCH",`/blobs/${h}-${i}`,{fields:{d:syStr(parts[i]),n:syInt(parts.length)}});
+    up.add(h); await IDB.putMeta("blobsUp",[...up]);
+  }
+}
+
+/* 變更紀錄 */
+async function syMark(code){const d=new Set(await IDB.getMeta("dirty")||[]);d.add(code);await IDB.putMeta("dirty",[...d]);sySchedule()}
+async function syTomb(code){const t=(await IDB.getMeta("tombs")||[]).filter(x=>x.code!==code);t.push({code,updatedAt:Date.now()});await IDB.putMeta("tombs",t);
+  const d=new Set(await IDB.getMeta("dirty")||[]);d.delete(code);await IDB.putMeta("dirty",[...d]);sySchedule()}
+async function syMetaTouch(){await IDB.putMeta("metaAt",Date.now());sySchedule()}
+function sySchedule(){if(!syAuth()) return; clearTimeout(syTimer); syTimer=setTimeout(()=>syncNow(false),4000)}
+
+function syStatus(t,err){const e=$("#syncNote"); if(!e) return; e.textContent=t; e.classList.toggle("err",!!err)}
+async function syncNow(manual){
+  if(!syAuth()||!syCfg()){ if(manual) toast("請先在設定登入雲端同步"); syStatus(""); return }
+  if(syBusy){syAgain=true;return}
+  syBusy=true; syStatus("同步中…");
+  try{
+    if(!localStorage.getItem(SY_INIT)){ await IDB.putMeta("dirty",items.map(x=>x.code));
+      if(!(await IDB.getMeta("metaAt"))){ const has=!!stdBase.img||Object.keys(stdBase.marks||{}).length||members.some(m=>m.gen||m.body||Object.keys(m.marks||{}).length||m.en||m.name!==MEM_DEF[MEM_IDS.indexOf(m.id)]);
+        await IDB.putMeta("metaAt",has?Date.now():0); } }
+    let changed=false;
+    /* 1. 下載雲端較新的單品 */
+    const since=+(localStorage.getItem(SY_PULL)||0); let maxSeen=since;
+    const res=await syFS("POST",":runQuery",{structuredQuery:{from:[{collectionId:"items"}],where:{fieldFilter:{field:{fieldPath:"updatedAt"},op:"GREATER_THAN",value:syInt(since)}}}});
+    const dirty=new Set(await IDB.getMeta("dirty")||[]);
+    for(const row of res){
+      const doc=row.document; if(!doc) continue;
+      const code=decodeURIComponent(doc.name.split("/").pop()), up=+doc.fields.updatedAt.integerValue;
+      maxSeen=Math.max(maxSeen,up);
+      const cur=items.find(x=>x.code===code);
+      if(cur&&(cur.updatedAt||0)>=up) continue;
+      if(doc.fields.deleted?.booleanValue){ if(cur){await IDB.del(code);items=items.filter(x=>x.code!==code);changed=true} dirty.delete(code); continue }
+      syStatus("同步中…下載 "+code);
+      const it=await syRestore(JSON.parse(doc.fields.json.stringValue)); it.updatedAt=up;
+      await IDB.put(it); const i=items.findIndex(x=>x.code===code); i>=0?items[i]=it:items.push(it); dirty.delete(code); changed=true;
+    }
+    await IDB.putMeta("dirty",[...dirty]);
+    /* 2. 成員與標準底模 */
+    const localAt=+(await IDB.getMeta("metaAt")||0), rm=await syGetDoc("/meta/state"), remoteAt=rm?+rm.fields.updatedAt.integerValue:0;
+    if(remoteAt>localAt){
+      syStatus("同步中…下載成員資料");
+      const o=await syRestore(JSON.parse(rm.fields.json.stringValue));
+      if(Array.isArray(o.members)) members=MEM_IDS.map((id,i)=>({...members[i],...(o.members.find(x=>x.id===id)||{})}));
+      if(o.std) stdBase={img:"",marks:{},...o.std};
+      await IDB.putMeta("members",members); await IDB.putMeta("std",stdBase); await IDB.putMeta("metaAt",remoteAt); changed=true;
+    }else if(localAt>remoteAt){
+      syStatus("同步中…上傳成員資料");
+      const blobs=new Map(); const json=JSON.stringify(await syStrip({members,std:stdBase},blobs));
+      await syUpBlobs(blobs); await syFS("PATCH","/meta/state",{fields:{json:syStr(json),updatedAt:syInt(localAt)}});
+    }
+    /* 3. 上傳本機修改與刪除 */
+    for(const t of await IDB.getMeta("tombs")||[]){
+      await syFS("PATCH",`/items/${encodeURIComponent(t.code)}`,{fields:{json:syStr("{}"),updatedAt:syInt(t.updatedAt),deleted:{booleanValue:true}}});
+      maxSeen=Math.max(maxSeen,t.updatedAt);
+    }
+    await IDB.putMeta("tombs",[]);
+    const todo=[...new Set(await IDB.getMeta("dirty")||[])]; let k=0;
+    for(const code of todo){
+      const it=items.find(x=>x.code===code); k++;
+      if(it){ syStatus(`同步中…上傳 ${k}/${todo.length}`);
+        const blobs=new Map(); const json=JSON.stringify(await syStrip(it,blobs));
+        await syUpBlobs(blobs);
+        await syFS("PATCH",`/items/${encodeURIComponent(code)}`,{fields:{json:syStr(json),updatedAt:syInt(it.updatedAt),deleted:{booleanValue:false}}});
+        maxSeen=Math.max(maxSeen,it.updatedAt||0); }
+      const d=new Set(await IDB.getMeta("dirty")||[]); d.delete(code); await IDB.putMeta("dirty",[...d]);
+    }
+    localStorage.setItem(SY_PULL,String(maxSeen)); localStorage.setItem(SY_INIT,"1"); syLast=Date.now();
+    if(changed){ renderNav(); showView(view) }
+    syStatus("已同步 "+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"}));
+    if(manual) toast(changed?"同步完成,已更新本機資料":"同步完成");
+  }catch(e){ syStatus(syMsg(e),true); if(manual) toast(syMsg(e)) }
+  finally{ syBusy=false; if(syAgain){syAgain=false;sySchedule()} }
+}
+function syRenderSettings(){
+  const c=syCfg(), a=syAuth();
+  $("#syCfgInfo").textContent=c?`已設定專案:${c.projectId}`:"還沒設定。";
+  $("#syIn").classList.toggle("hidden",!!a); $("#syOut").classList.toggle("hidden",!a);
+  $("#syWho").textContent=a?`已登入:${a.email}`:"";
+}
+$("#sySaveCfg").onclick=()=>{
+  const t=$("#syCfgIn").value; const k=t.match(/apiKey["'\s:]+["']([^"']+)["']/), p=t.match(/projectId["'\s:]+["']([^"']+)["']/);
+  if(!k||!p){toast("找不到 apiKey 或 projectId,請貼上整段 firebaseConfig");return}
+  localStorage.setItem(SY_CFG,JSON.stringify({apiKey:k[1],projectId:p[1]})); $("#syCfgIn").value=""; syRenderSettings(); toast("Firebase 設定已儲存");
+};
+async function syDoSign(create){
+  const st=$("#syStatus"); st.classList.remove("err"); st.textContent=create?"建立中…":"登入中…";
+  try{ await sySignIn($("#syEmail").value.trim(),$("#syPw").value,create); $("#syPw").value=""; st.textContent="登入成功,開始同步。"; syRenderSettings(); syncNow(true) }
+  catch(e){ st.classList.add("err"); st.textContent=syMsg(e) }
+}
+$("#sySignIn").onclick=()=>syDoSign(false); $("#sySignUp").onclick=()=>syDoSign(true);
+$("#sySignOut").onclick=()=>{localStorage.removeItem(SY_AUTH);localStorage.removeItem(SY_PULL);localStorage.removeItem(SY_INIT);syTok=null;syRenderSettings();syStatus("");toast("已登出,本機資料保留")};
+$("#syNow").onclick=()=>syncNow(true);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&Date.now()-syLast>2*60*1000) syncNow(false) });
 /* ---------- 版本更新檢查 ---------- */
 const isNative=!!window.Capacitor?.isNativePlatform?.();
 let updLatest=null, updLastCheck=0, updDismissed=0;
@@ -1099,9 +1270,9 @@ if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
   syncKeybar();
   try{ await IDB.open(); items=await IDB.all(); navigator.storage?.persist?.();
     const mm=await IDB.getMeta("members"); if(Array.isArray(mm)) members=MEM_IDS.map((id,i)=>({...members[i],...(mm.find(x=>x.id===id)||{})}));
-    const sb=await IDB.getMeta("std"); if(sb) stdBase={img:"",marks:{},...sb}; $("#storeNote").textContent="資料存在這台裝置裡。換裝置時用「設定」裡的匯出、匯入備份同步。"; }
+    const sb=await IDB.getMeta("std"); if(sb) stdBase={img:"",marks:{},...sb}; $("#storeNote").textContent="資料存在這台裝置裡;在「設定」登入雲端同步後,網頁版和手機會自動同步。"; }
   catch(e){ $("#storeNote").textContent="無法開啟本機資料庫,資料不會被保存。"; }
-  renderNav(); renderStd(); renderLib();
+  renderNav(); renderStd(); renderLib(); syRenderSettings(); syncNow(false);
 })();
 </script>
 </body>
