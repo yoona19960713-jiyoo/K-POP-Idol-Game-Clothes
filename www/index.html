@@ -171,8 +171,8 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
   <p class="note">金鑰只存在這台裝置,不會上傳到任何地方。手機和電腦要各自貼一次。</p>
   <div class="row"><input type="password" id="keyIn" placeholder="貼上金鑰" autocomplete="off" style="flex:1;min-width:200px"><button class="btn sm" id="keyShow">顯示</button></div>
   <label class="lbl" for="modelIn">使用的模型</label>
-  <select id="modelIn"><option value="gemini-2.5-flash">gemini-2.5-flash(推薦,看圖較準)</option><option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite(較快,每日次數較多)</option><option value="custom">自行輸入…</option></select>
-  <input type="text" id="modelCustom" class="hidden" placeholder="例如 gemini-3.5-flash" style="margin-top:6px">
+  <select id="modelIn"><option value="gemini-flash-latest">最新 Flash(推薦,自動跟上新版本)</option><option value="gemini-flash-lite-latest">最新 Flash-Lite(較快,每日次數較多)</option><option value="custom">自行輸入…</option></select>
+  <input type="text" id="modelCustom" class="hidden" placeholder="例如 gemini-3.6-flash" style="margin-top:6px">
   <div class="row" style="margin-top:10px"><button class="btn pri" id="keySave">儲存</button><button class="btn" id="keyTest">測試連線</button><button class="btn danger" id="keyDel">清除金鑰</button></div>
   <div class="status" id="keyStatus"></div>
   <details style="margin-top:12px"><summary class="note" style="cursor:pointer">怎麼取得金鑰?</summary>
@@ -253,7 +253,9 @@ let items=[], pending=[], pendingSet=null, photos=[], ctl=null;
 let curFile="clothes", curSheet="top";
 const KEY_K="kpopClothes.geminiKey", KEY_M="kpopClothes.model";
 const apiKey=()=>localStorage.getItem(KEY_K)||"";
-const model=()=>localStorage.getItem(KEY_M)||"gemini-2.5-flash";
+const DEFAULT_MODEL="gemini-flash-latest"; // 永遠指向 Google 最新的 Flash,模型汰換時不用改程式
+const RETIRED=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-2.0-flash","gemini-2.0-flash-lite"];
+const model=()=>{const m=localStorage.getItem(KEY_M)||DEFAULT_MODEL; return RETIRED.includes(m)?DEFAULT_MODEL:m};
 
 /* ---------- 本機資料庫(IndexedDB) ---------- */
 const IDB={db:null,
@@ -279,14 +281,17 @@ async function aiJSON(prompt,files,signal){
   try{
     res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model())}:generateContent`,{method:"POST",signal,
       headers:{"Content-Type":"application/json","x-goog-api-key":key},
-      body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0.6}})});
+      body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json"}})});
   }catch(e){ if(e?.name==="AbortError") throw {code:"cancelled"}; throw {code:"network"} }
   const j=await res.json().catch(()=>({}));
   if(!res.ok){
     const raw=JSON.stringify(j); const msg=j?.error?.message||"";
     if(res.status===429) throw {code:/PerDay|per day|daily/i.test(raw)?"rate_day":"rate_minute",message:msg};
     if(res.status===401||res.status===403||/API key/i.test(msg)) throw {code:"bad_key",message:msg};
-    if(res.status===404) throw {code:"bad_model",message:msg};
+    if(res.status===404){
+      if(model()!==DEFAULT_MODEL){ localStorage.setItem(KEY_M,DEFAULT_MODEL); return aiJSON(prompt,files,signal); } // 模型被停用時自動改回預設
+      throw {code:"bad_model",message:msg};
+    }
     if(/location/i.test(msg)) throw {code:"region",message:msg};
     throw {code:"server",message:msg};
   }
@@ -649,7 +654,7 @@ const setDlg=$("#setDlg");
 function syncKeybar(){$("#keybar").classList.toggle("hidden",!!apiKey())}
 function openSettings(){
   $("#keyIn").value=apiKey(); $("#keyStatus").textContent="";
-  const m=model(), known=["gemini-2.5-flash","gemini-2.5-flash-lite"].includes(m);
+  const m=model(), known=["gemini-flash-latest","gemini-flash-lite-latest"].includes(m);
   $("#modelIn").value=known?m:"custom"; $("#modelCustom").value=known?"":m; $("#modelCustom").classList.toggle("hidden",known);
   if(!setDlg.open) setDlg.showModal();
 }
