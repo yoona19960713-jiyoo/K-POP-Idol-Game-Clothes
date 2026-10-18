@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/jszip.min.js"></script>
+<script src="wardrobe.js"></script>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#86507A">
 <link rel="icon" href="icon-192.png">
@@ -106,17 +107,45 @@ dialog::backdrop{background:rgba(20,12,22,.5)}
 .blist li.bad .r{color:var(--bad)}
 .blist li .d{font-size:12px;color:var(--muted);grid-column:1/-1}
 dialog .in{padding:16px;overflow:auto;max-height:90vh}
+.topnav{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.topnav .chipbtn{font-size:15px;padding:6px 14px}
+.basegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,190px));gap:12px;margin:8px 0}
+.basebox{border:1px solid var(--line);border-radius:12px;padding:8px;background:var(--card2);display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.basebox img,.basebox .ph{width:100%;aspect-ratio:2/3;object-fit:contain;border-radius:8px;background:var(--accent-soft);display:block}
+.basebox b{font-size:14px}
+.stage{display:flex;justify-content:center;margin-top:8px}
+.stage canvas{width:100%;max-width:420px;height:auto;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
+.imgrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,160px));gap:8px;margin-top:10px}
+.imgbox{border:1px dashed var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.imgbox img,.imgbox .ph{width:100%;aspect-ratio:2/3;object-fit:contain;border-radius:6px;display:block;background:repeating-conic-gradient(var(--card2) 0 25%,var(--card) 0 50%) 0 0/16px 16px}
+.vs{font-size:12px;border-radius:999px;padding:1px 8px;border:1px solid currentColor;white-space:nowrap}
+.vs0{color:var(--muted)}.vs1{color:var(--warn)}.vs2{color:#3F7FA8}.vs3{color:var(--good)}
+.li.on{outline:2px solid var(--accent)}
+#markList .chipbtn{font-size:12px;padding:2px 9px}
+#markList .chipbtn.done{border-color:var(--good)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="row" style="justify-content:space-between;align-items:flex-start"><h1>衣帽間素材工坊</h1><button class="btn sm" id="openSet">設定</button></div>
-    <p>放入穿搭照片或商品截圖,由 Gemini 自動拆出每件單品、填好屬性,並產出 GPT 生圖提示詞。</p>
+    <p>總庫管理單品設計;五位成員各自的頁面負責把單品適配到她身上、試穿組裝。</p>
     <div class="stats" id="stats"></div>
+    <nav class="topnav" id="topnav" aria-label="切換頁面"></nav>
     <div class="keybar hidden" id="keybar">還沒設定 Gemini API 金鑰,分析功能無法使用。<button class="btn sm pri" id="keyGo">前往設定</button></div>
   </header>
 
+  <div id="libView">
+  <section id="stdSec">
+    <h2>標準底模</h2>
+    <p class="note" style="margin-top:-4px">總庫的單品都在這張底模上生成,它也是「自動適配」的來源:程式會依它和每位成員的關鍵點,把單品變形到成員身上。</p>
+    <div class="row" style="align-items:flex-start;gap:14px">
+      <div class="basebox" style="width:150px" id="stdPic"></div>
+      <div style="flex:1;min-width:200px"><div class="row"><button class="btn" id="stdUp">上傳底模</button><button class="btn" id="stdMark">標記關鍵點</button></div>
+        <p class="note" id="stdInfo"></p></div>
+    </div>
+    <input type="file" id="stdFile" accept="image/*" class="hidden">
+  </section>
   <section id="newSec">
     <h2>新增素材</h2>
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="選擇或拖入圖片"><b>點這裡選照片</b>,或把圖片拖進來<br><span class="note">可一次放多張同一套穿搭的不同角度。臉部不會被分析,只看衣物。</span></div>
@@ -163,8 +192,59 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
     <p class="note" id="storeNote"></p>
   </section>
 </div>
+<div id="memView" class="hidden">
+  <section>
+    <h2 id="mTitle"></h2>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <label>中文譯名<input type="text" id="mName"></label>
+      <label>英文藝名<input type="text" id="mEn"></label>
+    </div>
+  </section>
+  <section>
+    <h2>底模</h2>
+    <p class="note" style="margin-top:-4px">生圖用底模:綠色背景、白上衣、白短褲、白襪,姿勢與取景跟標準底模一致,附在這位成員的專屬提示詞上。組裝用身體層:衣櫥間實際疊衣服的身體,沒有另外上傳就沿用生圖用底模。兩張的姿勢與取景必須完全相同。</p>
+    <div class="basegrid" id="mBases"></div>
+    <div class="row"><button class="btn" id="mMark">標記關鍵點</button><span class="note" id="mMarkInfo"></span></div>
+    <input type="file" id="mFile" accept="image/*" class="hidden">
+  </section>
+  <section>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">試穿預覽</h2>
+      <div class="row"><button class="btn sm" id="tryClear">全部脫下</button><button class="btn sm" id="tryDl">下載預覽圖</button></div></div>
+    <div class="stage"><canvas id="tryCv" width="400" height="600"></canvas></div>
+    <p class="note" id="tryInfo" style="text-align:center"></p>
+  </section>
+  <section>
+    <h2>單品適配</h2>
+    <div class="tabs" id="mFileTabs"></div>
+    <div class="filters"><input type="text" id="mq" placeholder="搜尋名稱、編號、標籤"><select id="mfs" aria-label="適配狀態"><option value="">全部狀態</option></select></div>
+    <div class="lib" id="mLib"></div>
+  </section>
+</div>
+</div>
 
 <dialog id="dlg"><div class="in" id="dlgIn"></div></dialog>
+<dialog id="fitDlg"><div class="in">
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0" id="fitTitle"></h2><button class="btn sm" id="fitClose">關閉</button></div>
+  <p class="note" id="fitState"></p>
+  <label class="note row" style="gap:6px"><input type="checkbox" id="fitWith"> 連同目前試穿的其他單品一起看</label>
+  <div class="stage"><canvas id="fitCv" width="400" height="600"></canvas></div>
+  <div class="axes" id="fitAx"></div>
+  <div class="row" style="margin-top:10px"><button class="btn" id="fitReset">重設微調</button><button class="btn pri" id="fitOk">確認採用</button></div>
+  <div id="fitCustom">
+    <h3 style="font-size:15px;margin:18px 0 4px">專屬版</h3>
+    <p class="note">自動變形不自然時,把這段提示詞連同<b id="fitWho"></b>的生圖用底模一起交給 GPT,切好圖後上傳。切圖請保留整張畫布大小(透明背景),不要裁切。上傳專屬版後就不再自動變形,但仍可用上面的滑桿微調。</p>
+    <textarea readonly id="fitPrompt" style="width:100%;min-height:100px;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn sm" id="fitCopy">複製專屬提示詞</button><button class="btn sm" id="fitUpF">上傳專屬切圖</button><button class="btn sm" id="fitUpB">上傳專屬後層</button><button class="btn sm danger" id="fitRm">移除專屬版</button></div>
+    <input type="file" id="fitFile" accept="image/png,image/webp" class="hidden">
+  </div>
+</div></dialog>
+<dialog id="markDlg"><div class="in">
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0" id="markTitle"></h2><button class="btn sm" id="markClose">取消</button></div>
+  <p class="note">先點下面的點名稱,再點圖上的位置,放好會自動跳到下一個。已放好的點可以直接拖曳微調。左右指畫面上的左右。實心點是已標記,空心點是預設位置。</p>
+  <div class="cats" id="markList"></div>
+  <div class="stage"><canvas id="markCv" width="400" height="600" style="touch-action:none;cursor:crosshair"></canvas></div>
+  <div class="row" style="margin-top:10px;justify-content:space-between"><div class="row"><button class="btn sm" id="markStd">從標準底模複製</button><button class="btn sm" id="markDef">全部重設</button></div><button class="btn pri" id="markSave">儲存</button></div>
+</div></dialog>
 <dialog id="setDlg"><div class="in">
   <div class="row" style="justify-content:space-between"><h2 style="margin:0">設定</h2><button class="btn sm" id="setClose">關閉</button></div>
   <h3 style="font-size:15px;margin:16px 0 4px">Gemini API 金鑰</h3>
@@ -259,12 +339,14 @@ const model=()=>{const m=localStorage.getItem(KEY_M)||DEFAULT_MODEL; return RETI
 
 /* ---------- 本機資料庫(IndexedDB) ---------- */
 const IDB={db:null,
-  open(){return new Promise((ok,no)=>{const r=indexedDB.open("kpop-clothes",1);r.onupgradeneeded=()=>r.result.createObjectStore("items",{keyPath:"code"});r.onsuccess=()=>{this.db=r.result;ok()};r.onerror=()=>no(r.error)})},
+  open(){return new Promise((ok,no)=>{const r=indexedDB.open("kpop-clothes",2);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains("items"))db.createObjectStore("items",{keyPath:"code"});if(!db.objectStoreNames.contains("meta"))db.createObjectStore("meta")};r.onsuccess=()=>{this.db=r.result;ok()};r.onerror=()=>no(r.error)})},
   st(m){return this.db.transaction("items",m).objectStore("items")},
   req(q){return new Promise((ok,no)=>{q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
   all(){return this.req(this.st("readonly").getAll())},
   put(v){return this.req(this.st("readwrite").put(v))},
   del(k){return this.req(this.st("readwrite").delete(k))},
+ getMeta(k){return this.req(this.db.transaction("meta","readonly").objectStore("meta").get(k))},
+ putMeta(k,v){return this.req(this.db.transaction("meta","readwrite").objectStore("meta").put(v,k))},
 };
 
 /* ---------- Gemini ---------- */
@@ -401,7 +483,7 @@ function normalize(x,thumb){
   return {keep:true,file:f,sheet:s,name:String(x.name||"未命名"),subtype:String(x.subtype||""),colorMain:String(x.colorMain||""),colorSub:String(x.colorSub||""),
     material:String(x.material||""),desc:String(x.desc||""),attrs,tags:(Array.isArray(x.tags)?x.tags:[]).map(String).slice(0,6),
     occasions:(Array.isArray(x.occasions)?x.occasions:[]).map(String).filter(o=>OCC.includes(o)),rarity:RAR.includes(x.rarity)?x.rarity:"R",
-    extra,notes:String(x.notes||""),price:"",thumb};
+    extra,notes:String(x.notes||""),price:"",thumb,scope:"all",z:"",hex:"",variants:{}};
 }
 $("#go").onclick=()=>analyze(true);
 $("#goText").onclick=()=>analyze(false);
@@ -426,10 +508,14 @@ function editorHTML(it,i,mode){
       <label>價格<input type="number" data-f="price" value="${esc(it.price)}"></label>
       ${mode==="lib"?`<label>製作進度<select data-f="status">${STATUS.map((s,k)=>`<option value="${k}" ${k===(it.status||0)?"selected":""}>${s}</option>`).join("")}</select></label>`:""}
       ${ex}
+    ${scopeHTML(it)}
+    <label>圖層順序<input type="number" data-f="z" value="${esc(it.z??"")}" placeholder="預設 ${Wardrobe.Z[it.sheet]??""}"></label>
+    ${S.noGen?`<label>顏色<input type="color" data-f="hex" value="${esc(it.hex||"#d77a8a")}" style="height:34px;padding:2px"></label>`:""}
       <label style="grid-column:1/-1">風格標籤(用頓號或逗號分隔)<input type="text" data-f="tags" value="${esc(it.tags.join("、"))}"></label>
       <label style="grid-column:1/-1">適合場合<span class="cats">${OCC.map(o=>`<button type="button" class="chipbtn" data-occ="${o}" aria-pressed="${it.occasions.includes(o)}" style="font-size:12px;padding:2px 10px">${o}</button>`).join("")}</span></label>
     </div>
     <div class="axes">${AXES.map(([k,l,r])=>`<span class="l">${l}</span><input type="range" min="-3" max="3" step="1" data-ax="${k}" value="${it.attrs[k]}" aria-label="${l}到${r}"><span class="r">${r}</span><output>${it.attrs[k]>0?"+":""}${it.attrs[k]}</output>`).join("")}</div>
+    ${mode==="lib"&&!S.noGen?imgRowHTML(it):""}
     <div class="prompt"><label class="lbl" style="margin-top:4px">單品描述(英文,會套進提示詞)</label><input type="text" data-f="desc" value="${esc(it.desc)}">
       <label class="lbl">GPT 提示詞</label><textarea readonly data-prompt>${esc(buildPrompt(it))}</textarea>
       <div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-copy>複製提示詞</button>${mode==="lib"?`<label class="note" style="flex:1">圖檔名稱 <input type="text" data-f="imageFile" value="${esc(it.imageFile||"")}" style="padding:4px 8px"></label>`:""}</div>
@@ -455,6 +541,8 @@ function bindEditor(root,getItem,onChange){
     card.querySelectorAll("[data-ax]").forEach(el=>el.addEventListener("input",()=>{const v=+el.value;it.attrs[el.dataset.ax]=v;el.nextElementSibling.nextElementSibling.textContent=(v>0?"+":"")+v;refresh()}));
     card.querySelectorAll("[data-occ]").forEach(el=>el.onclick=()=>{const o=el.dataset.occ;it.occasions=it.occasions.includes(o)?it.occasions.filter(x=>x!==o):[...it.occasions,o];el.setAttribute("aria-pressed",it.occasions.includes(o));refresh()});
     card.querySelector("[data-copy]").onclick=()=>copyText(card.querySelector("[data-prompt]"));
+    card.querySelectorAll("[data-img]").forEach(b=>b.onclick=()=>pickImage(url=>{it[b.dataset.img]=url;onChange&&onChange(it,true)}));
+    card.querySelectorAll("[data-imgclr]").forEach(b=>b.onclick=()=>{it[b.dataset.imgclr]="";onChange&&onChange(it,true)});
   });
 }
 async function copyText(ta){
@@ -484,7 +572,7 @@ async function saveItem(it){
   const {keep,...body}=it; body.updatedAt=Date.now();
   await IDB.put(body);
   const i=items.findIndex(x=>x.code===body.code); if(i>=0) items[i]=body; else items.push(body);
-  renderLib();
+  renderLib(); if(view!=="lib") renderMemLib();
 }
 $("#saveAll").onclick=async()=>{
   const keep=pending.filter(x=>x.keep!==false); if(!keep.length){toast("沒有勾選任何單品");return}
@@ -522,11 +610,11 @@ function renderLib(){
     return [it.name,it.subtype,it.colorMain,it.colorSub,it.material,it.code,it.setName,...(it.tags||[])].join(" ").toLowerCase().includes(q);
   }).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
   $("#lib").innerHTML=list.length?list.map(it=>`<div class="li">
-      ${it.thumb?`<img src="${it.thumb}" alt="">`:`<span class="ph"></span>`}
+      ${(it.stdFront||it.thumb)?`<img src="${it.stdFront||it.thumb}" alt="">`:`<span class="ph"></span>`}
       <div style="min-width:0"><div class="nm">${esc(it.name)}</div>
         <div class="meta">${esc(it.code)}・${esc(it.subtype)}・${esc(it.colorMain)}${it.setName?`・套裝 ${esc(it.setName)}`:""}・${esc(it.rarity)}</div>
         <div class="tagrow">${(it.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></div>
-      <div class="acts"><span class="st st${it.status||0}">${STATUS[it.status||0]}</span>
+      <div class="acts"><span class="st st${it.status||0}">${STATUS[it.status||0]}</span><span class="note">${esc(adaptText(it))}${it.scope&&it.scope!=="all"?"・"+esc(memberById(it.scope)?.name||"")+"專屬":""}</span>
         <div class="row"><button class="btn sm" data-cp="${esc(it.code)}">複製提示詞</button><button class="btn sm" data-ed="${esc(it.code)}">編輯</button></div></div>
     </div>`).join(""):`<div class="empty">${items.length?"這個分頁還沒有單品。":"資料庫是空的,從上方放入第一張穿搭照吧。"}</div>`;
   document.querySelectorAll("[data-cp]").forEach(b=>b.onclick=async()=>{const it=items.find(x=>x.code===b.dataset.cp);const ta=document.createElement("textarea");ta.value=buildPrompt(it);try{await navigator.clipboard.writeText(ta.value);toast("提示詞已複製")}catch(e){openEditor(it)}});
@@ -557,18 +645,278 @@ function openEditor(it){
   if(!dlg.open) dlg.showModal();
 }
 async function removeItem(code){
-  await IDB.del(code); items=items.filter(x=>x.code!==code); renderLib();
+  await IDB.del(code); items=items.filter(x=>x.code!==code); renderLib(); if(view!=="lib") renderMem();
 }
+
+/* ---------- 成員與適配 ---------- */
+const MEM_IDS=["m1","m2","m3","m4","m5"], MEM_DEF=["成員一","成員二","成員三","成員四","成員五"];
+let members=MEM_IDS.map((id,i)=>({id,name:MEM_DEF[i],en:"",gen:"",body:"",marks:{},tryOn:[]}));
+let stdBase={img:"",marks:{}};
+let view="lib", mFile="clothes";
+const memberById=id=>members.find(m=>m.id===id);
+const mLabel=m=>m.name+(m.en?`(${m.en})`:"");
+const NMARK=Wardrobe.MARKS.length;
+const VST=["沒有切圖","自動・待確認","已確認","專屬版"];
+async function saveMeta(){try{await IDB.putMeta("members",members);await IDB.putMeta("std",stdBase)}catch(e){toast("儲存失敗")}}
+const appliesTo=(it,m)=>!it.scope||it.scope==="all"||it.scope===m.id;
+const isNoGen=it=>!!FILES[it.file]?.sheets[it.sheet]?.noGen;
+function vstat(it,mid){
+  if(isNoGen(it)) return 2;
+  const v=it.variants?.[mid];
+  if(v?.front) return 3; if(!it.stdFront) return 0; return v?.ok?2:1;
+}
+const vlabel=(it,mid)=>isNoGen(it)?"程式上色":VST[vstat(it,mid)];
+function adaptText(it){
+  const ms=members.filter(m=>appliesTo(it,m)); if(!ms.length) return "";
+  if(isNoGen(it)) return "程式上色";
+  return `適配 ${ms.filter(m=>vstat(it,m.id)>=2).length}/${ms.length}`;
+}
+function scopeHTML(it){
+  return `<label>適用範圍<select data-f="scope"><option value="all" ${!it.scope||it.scope==="all"?"selected":""}>全員通用</option>${members.map(m=>`<option value="${m.id}" ${it.scope===m.id?"selected":""}>${esc(m.name)}專屬</option>`).join("")}</select></label>`;
+}
+function imgRowHTML(it){
+  const hair=it.file==="hair";
+  const box=(k,l)=>`<div class="imgbox">${it[k]?`<img src="${it[k]}" alt="">`:`<span class="ph"></span>`}<span>${l}</span>
+    <div class="row"><button type="button" class="btn sm" data-img="${k}">上傳</button>${it[k]?`<button type="button" class="btn sm danger" data-imgclr="${k}">移除</button>`:""}</div></div>`;
+  return `<label class="lbl">標準切圖(在標準底模上生成後切好、保留整張畫布的透明 PNG)</label><div class="imgrow">${box("stdFront",hair?"前髮層":"切圖")}${box("stdBack",hair?"後髮層":"後層(選用,例如披風背面)")}</div>`;
+}
+function pickImage(cb,max=1536){
+  const inp=document.createElement("input"); inp.type="file"; inp.accept="image/*";
+  inp.onchange=async()=>{const f=inp.files[0]; if(!f) return;
+    try{const bmp=await createImageBitmap(f); const s=Math.min(1,max/Math.max(bmp.width,bmp.height));
+      const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+      c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+      let url=c.toDataURL("image/webp",0.92); if(!url.startsWith("data:image/webp")) url=c.toDataURL("image/png");
+      await cb(url);
+    }catch(e){toast("讀不到這張圖,請換一張")}};
+  inp.click();
+}
+
+/* 頁面切換 */
+function renderNav(){
+  $("#topnav").innerHTML=`<button class="chipbtn" data-view="lib" aria-pressed="${view==="lib"}">總庫</button>`+
+    members.map(m=>`<button class="chipbtn" data-view="${m.id}" aria-pressed="${view===m.id}">${esc(m.name)}</button>`).join("");
+  document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>showView(b.dataset.view));
+}
+function showView(v){
+  view=v; renderNav();
+  $("#libView").classList.toggle("hidden",v!=="lib"); $("#memView").classList.toggle("hidden",v==="lib");
+  if(v==="lib"){renderStd();renderLib()} else renderMem();
+  window.scrollTo(0,0);
+}
+function renderStd(){
+  $("#stdPic").innerHTML=stdBase.img?`<img src="${stdBase.img}" alt="標準底模">`:`<span class="ph"></span>`;
+  const n=Object.keys(stdBase.marks||{}).length;
+  $("#stdInfo").textContent=stdBase.img?`已標記 ${n}/${NMARK} 個關鍵點。${n<NMARK?"沒標的點會用預設位置,自動適配會比較不準。":""}`:"還沒上傳。請上傳工坊生圖用的綠幕底模。";
+}
+$("#stdUp").onclick=()=>pickImage(async url=>{stdBase.img=url;await saveMeta();renderStd()});
+$("#stdMark").onclick=()=>openMark("std");
+
+/* 成員頁 */
+let nameT;
+function renderMem(){
+  const m=memberById(view); if(!m) return;
+  $("#mTitle").textContent=mLabel(m);
+  if(document.activeElement!==$("#mName")) $("#mName").value=m.name;
+  if(document.activeElement!==$("#mEn")) $("#mEn").value=m.en||"";
+  $("#mBases").innerHTML=[["gen","生圖用底模"],["body","組裝用身體層"]].map(([k,l])=>`<div class="basebox">${m[k]?`<img src="${m[k]}" alt="">`:`<span class="ph"></span>`}<b>${l}</b>
+    ${k==="body"&&!m.body&&m.gen?`<span class="note">目前沿用生圖用底模</span>`:""}
+    <div class="row"><button class="btn sm" data-up="${k}">上傳</button>${m[k]?`<button class="btn sm danger" data-clr="${k}">移除</button>`:""}</div></div>`).join("");
+  document.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>pickImage(async url=>{m[b.dataset.up]=url;await saveMeta();renderMem()}));
+  document.querySelectorAll("[data-clr]").forEach(b=>b.onclick=async()=>{m[b.dataset.clr]="";await saveMeta();renderMem()});
+  const n=Object.keys(m.marks||{}).length;
+  $("#mMarkInfo").textContent=`已標記 ${n}/${NMARK} 個關鍵點`;
+  renderMemLib(); renderTry();
+}
+$("#mName").oninput=e=>{const m=memberById(view);m.name=e.target.value.trim()||MEM_DEF[MEM_IDS.indexOf(m.id)];$("#mTitle").textContent=mLabel(m);renderNav();clearTimeout(nameT);nameT=setTimeout(saveMeta,500)};
+$("#mEn").oninput=e=>{const m=memberById(view);m.en=e.target.value.trim();$("#mTitle").textContent=mLabel(m);clearTimeout(nameT);nameT=setTimeout(saveMeta,500)};
+$("#mMark").onclick=()=>openMark(view);
+$("#mq").oninput=()=>renderMemLib(); $("#mfs").onchange=()=>renderMemLib();
+$("#mfs").innerHTML+=VST.map((s,k)=>`<option value="${k}">${s}</option>`).join("");
+
+function renderMemLib(){
+  const m=memberById(view); if(!m) return;
+  const mine=items.filter(it=>appliesTo(it,m));
+  $("#mFileTabs").innerHTML=Object.entries(FILES).map(([f,F])=>`<button class="chipbtn" data-mf="${f}" aria-pressed="${f===mFile}">${F.n}<span class="count">${mine.filter(x=>x.file===f).length}</span></button>`).join("");
+  document.querySelectorAll("[data-mf]").forEach(b=>b.onclick=()=>{mFile=b.dataset.mf;renderMemLib()});
+  const q=$("#mq").value.trim().toLowerCase(), fs=$("#mfs").value;
+  const list=mine.filter(it=>it.file===mFile).filter(it=>{
+    if(fs!==""&&vstat(it,m.id)!==+fs) return false;
+    return !q||[it.name,it.code,it.subtype,it.colorMain,...(it.tags||[])].join(" ").toLowerCase().includes(q);
+  }).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+  $("#mLib").innerHTML=list.length?list.map(it=>{
+    const v=it.variants?.[m.id]||{}, on=(m.tryOn||[]).includes(it.code), st=vstat(it,m.id), pic=v.front||it.stdFront||it.thumb;
+    return `<div class="li ${on?"on":""}">${pic?`<img src="${pic}" alt="">`:`<span class="ph"></span>`}
+      <div style="min-width:0"><div class="nm">${esc(it.name)}</div><div class="meta">${esc(it.code)}・${esc(FILES[it.file].sheets[it.sheet].n)}${it.scope&&it.scope!=="all"?"・專屬":""}</div></div>
+      <div class="acts"><span class="vs vs${st}">${vlabel(it,m.id)}</span>
+        <div class="row"><button class="btn sm ${on?"pri":""}" data-try="${esc(it.code)}">${on?"脫下":"試穿"}</button><button class="btn sm" data-fit="${esc(it.code)}">調整</button></div></div></div>`;
+  }).join(""):`<div class="empty">這個大項還沒有適用於${esc(m.name)}的單品。</div>`;
+  document.querySelectorAll("[data-try]").forEach(b=>b.onclick=()=>toggleTry(m,b.dataset.try));
+  document.querySelectorAll("[data-fit]").forEach(b=>b.onclick=()=>openFit(b.dataset.fit));
+}
+
+/* 試穿:同部位互斥 */
+const HAIR=["long","mid","short","updo"];
+const EXCL={top:["top","dress"],skirt:["skirt","pants","dress"],pants:["skirt","pants","dress"],dress:["top","skirt","pants","dress"],
+  outer:["outer"],shoes:["shoes"],socks:["socks","hosiery"],hosiery:["socks","hosiery"],
+  long:HAIR,mid:HAIR,short:HAIR,updo:HAIR,eye:["eye","full"],lip:["lip","full"],cheek:["cheek","full"],full:["eye","lip","cheek","full"]};
+function wearList(codes,add){
+  let out=codes.filter(c=>items.some(x=>x.code===c));
+  if(add){const it=items.find(x=>x.code===add); const ex=EXCL[it?.sheet]||[];
+    out=out.filter(c=>{const o=items.find(x=>x.code===c);return c!==add&&!ex.includes(o?.sheet)}); out.push(add)}
+  return out;
+}
+async function toggleTry(m,code){
+  const cur=m.tryOn||[];
+  m.tryOn=cur.includes(code)?cur.filter(c=>c!==code):wearList(cur,code);
+  await saveMeta(); renderMemLib(); renderTry();
+}
+function layerFor(it,m,adjOverride){
+  const v=it.variants?.[m.id]||{};
+  const adj=adjOverride||{dx:v.dx||0,dy:v.dy||0,s:v.s||1,r:v.r||0};
+  if(isNoGen(it)){const kinds=it.sheet==="full"?["eye","lip","cheek"]:[it.sheet]; return {makeup:kinds.map(kind=>({kind,hex:it.hex||"#d77a8a",adj}))}}
+  const z=(it.z!==""&&it.z!=null&&!isNaN(+it.z))?+it.z:(Wardrobe.Z[it.sheet]??50);
+  const zBack=Wardrobe.Z_BACK[it.sheet]??15;
+  if(v.front) return {layer:{front:v.front,back:v.back,z,zBack,warp:false,adj}};
+  if(it.stdFront) return {layer:{front:it.stdFront,back:it.stdBack,z,zBack,warp:true,adj}};
+  return {};
+}
+async function composeFor(cv,m,codes,over){
+  const layers=[],makeup=[];
+  for(const c of codes){const it=items.find(x=>x.code===c); if(!it) continue;
+    const r=layerFor(it,m,over&&over.code===c?over.adj:null); if(r.layer) layers.push(r.layer); if(r.makeup) makeup.push(...r.makeup)}
+  return Wardrobe.compose(cv,{body:m.body||m.gen,stdMarks:stdBase.marks,marks:m.marks,layers,makeup,width:600});
+}
+function placeholder(cv,txt){cv.width=400;cv.height=600;const g=cv.getContext("2d");g.clearRect(0,0,400,600);
+  g.fillStyle=getComputedStyle(document.body).color;g.globalAlpha=.55;g.font="16px sans-serif";g.textAlign="center";g.fillText(txt,200,300);g.globalAlpha=1}
+async function renderTry(){
+  const m=memberById(view); if(!m) return; const cv=$("#tryCv");
+  if(!(m.body||m.gen)){placeholder(cv,"先在上面上傳底模");$("#tryInfo").textContent="";return}
+  const codes=wearList(m.tryOn||[]);
+  await composeFor(cv,m,codes);
+  const warn=Object.keys(stdBase.marks||{}).length<NMARK||Object.keys(m.marks||{}).length<NMARK;
+  $("#tryInfo").textContent=`試穿中 ${codes.length} 件`+(warn?"。標準底模或這位成員的關鍵點還沒標完,自動適配會用預設位置,可能不準。":"");
+}
+$("#tryClear").onclick=async()=>{const m=memberById(view);m.tryOn=[];await saveMeta();renderMemLib();renderTry()};
+$("#tryDl").onclick=()=>{const m=memberById(view);$("#tryCv").toBlob(b=>b&&offer(`${m.name}_試穿_${stampName()}.png`,b),"image/png")};
+
+/* 調整視窗 */
+let fit=null, fitRaf=0;
+const FIT_AX=[["dx","左","右",-.08,.08,.002],["dy","上","下",-.08,.08,.002],["s","縮小","放大",.85,1.15,.005],["r","左轉","右轉",-10,10,.5]];
+function openFit(code){
+  const m=memberById(view), it=items.find(x=>x.code===code); if(!it) return;
+  const v=it.variants?.[m.id]||{};
+  fit={code,mid:m.id,adj:{dx:v.dx||0,dy:v.dy||0,s:v.s||1,r:v.r||0}};
+  $("#fitTitle").textContent=`${m.name}・${it.name}`;
+  $("#fitWho").textContent=m.name; $("#fitPrompt").value=buildPrompt(it); $("#fitWith").checked=false;
+  $("#fitCustom").classList.toggle("hidden",isNoGen(it));
+  renderFitAx(); fitStateText(); drawFit();
+  const d=$("#fitDlg"); if(!d.open) d.showModal();
+}
+function fitStateText(){
+  const it=items.find(x=>x.code===fit.code), m=memberById(fit.mid), st=vstat(it,m.id);
+  const t=isNoGen(it)?"程式上色的妝容,可以調整位置和大小;顏色在總庫的單品編輯裡改。":
+    st===0?"這件還沒有標準切圖,請先在總庫上傳,或直接在下面上傳專屬版。":
+    st===3?"使用專屬版切圖(不自動變形)。":
+    st===2?"自動適配,已確認。":"自動適配,還沒確認。看起來沒問題就按「確認採用」。";
+  $("#fitState").textContent=t; $("#fitRm").classList.toggle("hidden",!it.variants?.[m.id]?.front);
+}
+function renderFitAx(){
+  const it=items.find(x=>x.code===fit.code); const ax=isNoGen(it)?FIT_AX.slice(0,3):FIT_AX;
+  const fmt=(k,v)=>k==="s"?Math.round(v*100)+"%":k==="r"?v+"°":(v>0?"+":"")+Math.round(v*1000)/10;
+  $("#fitAx").innerHTML=ax.map(([k,l,r,mn,mx,st])=>`<span class="l">${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" value="${fit.adj[k]}" data-fa="${k}" aria-label="${l}${r}"><span class="r">${r}</span><output>${fmt(k,fit.adj[k])}</output>`).join("");
+  document.querySelectorAll("[data-fa]").forEach(el=>el.oninput=()=>{const k=el.dataset.fa;fit.adj[k]=+el.value;el.nextElementSibling.nextElementSibling.textContent=fmt(k,fit.adj[k]);drawFit()});
+}
+function drawFit(){
+  cancelAnimationFrame(fitRaf);
+  fitRaf=requestAnimationFrame(async()=>{
+    const m=memberById(fit.mid), cv=$("#fitCv");
+    if(!(m.body||m.gen)){placeholder(cv,"先上傳這位成員的底模");return}
+    const codes=$("#fitWith").checked?wearList(m.tryOn||[],fit.code):[fit.code];
+    await composeFor(cv,m,codes,{code:fit.code,adj:fit.adj});
+  });
+}
+async function saveVariant(patch){
+  const it=items.find(x=>x.code===fit.code); if(!it) return;
+  it.variants={...(it.variants||{})}; it.variants[fit.mid]={...(it.variants[fit.mid]||{}),...patch};
+  await saveItem(it);
+}
+$("#fitWith").onchange=drawFit;
+$("#fitReset").onclick=()=>{fit.adj={dx:0,dy:0,s:1,r:0};renderFitAx();drawFit()};
+$("#fitOk").onclick=async()=>{await saveVariant({...fit.adj,ok:true});$("#fitDlg").close();toast("已確認")};
+$("#fitClose").onclick=()=>$("#fitDlg").close();
+$("#fitDlg").addEventListener("close",()=>{if(view!=="lib") renderMem()});
+$("#fitCopy").onclick=()=>copyText($("#fitPrompt"));
+$("#fitUpF").onclick=()=>pickImage(async url=>{await saveVariant({front:url,...fit.adj});fitStateText();drawFit();toast("已上傳專屬切圖")});
+$("#fitUpB").onclick=()=>pickImage(async url=>{await saveVariant({back:url});fitStateText();drawFit();toast("已上傳專屬後層")});
+$("#fitRm").onclick=async()=>{await saveVariant({front:"",back:"",ok:false});fitStateText();drawFit();toast("已移除專屬版,改回自動適配")};
+
+/* 關鍵點標記 */
+let mk=null;
+async function openMark(target){
+  const m=target==="std"?null:memberById(target);
+  const src=target==="std"?stdBase.img:(m.gen||m.body);
+  if(!src){toast("先上傳底模");return}
+  const img=await Wardrobe.loadImage(src); if(!img){toast("底模讀取失敗");return}
+  const marks=JSON.parse(JSON.stringify(target==="std"?stdBase.marks||{}:m.marks||{}));
+  mk={target,img,marks,sel:Wardrobe.MARKS.find(([k])=>!marks[k])?.[0]||Wardrobe.MARKS[0][0],drag:null,placed:false};
+  $("#markTitle").textContent=(target==="std"?"標準底模":m.name)+"・關鍵點";
+  $("#markStd").classList.toggle("hidden",target==="std");
+  const cv=$("#markCv"); cv.width=600; cv.height=Math.round(600*img.naturalHeight/img.naturalWidth);
+  renderMarkList(); drawMark();
+  const d=$("#markDlg"); if(!d.open) d.showModal();
+}
+function renderMarkList(){
+  $("#markList").innerHTML=Wardrobe.MARKS.map(([k,l])=>`<button type="button" class="chipbtn ${mk.marks[k]?"done":""}" data-mk="${k}" aria-pressed="${k===mk.sel}">${l}</button>`).join("");
+  document.querySelectorAll("[data-mk]").forEach(b=>b.onclick=()=>{mk.sel=b.dataset.mk;renderMarkList();drawMark()});
+}
+function drawMark(){
+  const cv=$("#markCv"),g=cv.getContext("2d"),W=cv.width,H=cv.height;
+  g.clearRect(0,0,W,H); g.drawImage(mk.img,0,0,W,H);
+  const def=Wardrobe.defaultMarks();
+  for(const [k,l,,,grp] of Wardrobe.MARKS){
+    const p=mk.marks[k]||def[k], x=p.x*W, y=p.y*H, sel=k===mk.sel, set=!!mk.marks[k];
+    g.beginPath(); g.arc(x,y,sel?8:5,0,Math.PI*2);
+    const col=grp==="face"?"#D4537E":"#185FA5";
+    if(set){g.fillStyle=col;g.fill()} g.lineWidth=2; g.strokeStyle=sel?"#fff":col; g.stroke();
+    if(sel){g.beginPath();g.arc(x,y,12,0,Math.PI*2);g.strokeStyle=col;g.stroke();
+      g.font="bold 15px sans-serif";g.lineWidth=4;g.strokeStyle="#fff";g.strokeText(l,x+15,y-10);g.fillStyle=col;g.fillText(l,x+15,y-10)}
+  }
+}
+function markPos(e){const r=$("#markCv").getBoundingClientRect();return {x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))}}
+$("#markCv").addEventListener("pointerdown",e=>{
+  const p=markPos(e), r=$("#markCv").getBoundingClientRect();
+  let best=null,bd=1e9;
+  for(const [k,v] of Object.entries(mk.marks)){const d=Math.hypot((v.x-p.x)*r.width,(v.y-p.y)*r.height);if(d<bd){bd=d;best=k}}
+  if(best&&bd<16){mk.drag=best;mk.sel=best;mk.placed=false}
+  else{mk.marks[mk.sel]=p;mk.drag=mk.sel;mk.placed=true}
+  $("#markCv").setPointerCapture(e.pointerId); renderMarkList(); drawMark();
+});
+$("#markCv").addEventListener("pointermove",e=>{if(!mk?.drag) return; mk.marks[mk.drag]=markPos(e); drawMark()});
+$("#markCv").addEventListener("pointerup",()=>{
+  if(!mk) return;
+  if(mk.placed){const ks=Wardrobe.MARKS.map(m=>m[0]);const i=ks.indexOf(mk.sel);
+    const next=ks.slice(i+1).concat(ks.slice(0,i)).find(k=>!mk.marks[k]); if(next) mk.sel=next}
+  mk.drag=null; mk.placed=false; renderMarkList(); drawMark();
+});
+$("#markStd").onclick=()=>{mk.marks=JSON.parse(JSON.stringify(stdBase.marks||{}));renderMarkList();drawMark();toast("已複製標準底模的位置,請逐點拖曳對準")};
+$("#markDef").onclick=()=>{mk.marks={};mk.sel=Wardrobe.MARKS[0][0];renderMarkList();drawMark()};
+$("#markClose").onclick=()=>$("#markDlg").close();
+$("#markSave").onclick=async()=>{
+  if(mk.target==="std") stdBase.marks=mk.marks; else memberById(mk.target).marks=mk.marks;
+  await saveMeta(); $("#markDlg").close(); toast("關鍵點已儲存");
+  if(view==="lib") renderStd(); else renderMem();
+};
 
 /* ---------- 匯出 Excel ---------- */
 function workbookFor(f){
   const wb=XLSX.utils.book_new();
   for(const [s,S] of Object.entries(FILES[f].sheets)){
-    const head=["編號","名稱","細類型","主色","副色","材質",...S.ex,...AXES.map(([k,l,r])=>`${l}↔${r}`),"風格標籤","適合場合","稀有度","價格","套裝編號","套裝名稱","參考來源","單品描述(英文)","GPT提示詞","製作進度","圖檔名稱","備註","建立日期"];
+    const head=["編號","名稱","細類型","主色","副色","材質",...S.ex,...AXES.map(([k,l,r])=>`${l}↔${r}`),"風格標籤","適合場合","稀有度","價格","套裝編號","套裝名稱","參考來源","單品描述(英文)","GPT提示詞","製作進度","適用範圍","圖層順序","五人適配","圖檔名稱","備註","建立日期"];
     const rows=inSheet(f,s).sort((a,b)=>String(a.code).localeCompare(String(b.code))).map(it=>[
       it.code,it.name,it.subtype,it.colorMain,it.colorSub,it.material,...S.ex.map(k=>it.extra?.[k]??""),
       ...AXES.map(([k])=>it.attrs?.[k]??0),(it.tags||[]).join("、"),(it.occasions||[]).join("、"),it.rarity,it.price===""?"":Number(it.price)||it.price,
-      it.setId||"",it.setName||"",it.source||"",it.desc||"",buildPrompt(it),STATUS[it.status||0],it.imageFile||"",it.notes||"",
+      it.setId||"",it.setName||"",it.source||"",it.desc||"",buildPrompt(it),STATUS[it.status||0],(!it.scope||it.scope==="all")?"全員通用":(memberById(it.scope)?.name||it.scope)+"專屬",it.z??"",members.filter(m=>appliesTo(it,m)).map(m=>`${m.name}:${vlabel(it,m.id)}`).join(";"),it.imageFile||"",it.notes||"",
       it.createdAt?new Date(it.createdAt).toLocaleDateString("zh-TW"):""]);
     const ws=XLSX.utils.aoa_to_sheet([head,...rows]);
     ws["!cols"]=head.map(h=>({wch:h==="GPT提示詞"?80:h==="單品描述(英文)"?50:h==="名稱"||h==="參考來源"?18:h.length>4?12:9}));
@@ -673,7 +1021,7 @@ $("#keyTest").onclick=async()=>{
   try{const r=await aiJSON('只回覆 JSON:{"ok":true}',[]); st.textContent=r?.ok?`連線成功,使用 ${model()}。`:"有回應,但格式不如預期,仍可試用。"}
   catch(e){st.classList.add("err"); st.textContent=ERR[e?.code]||"測試失敗。"+(e?.message?`(${e.message})`:"")}
 };
-$("#bkOut").onclick=()=>offer(`衣帽間備份_${stampName()}.json`,new Blob([JSON.stringify({app:"kpop-clothes",ver:1,exported:new Date().toISOString(),items})],{type:"application/json"}));
+$("#bkOut").onclick=()=>offer(`衣帽間備份_${stampName()}.json`,new Blob([JSON.stringify({app:"kpop-clothes",ver:2,exported:new Date().toISOString(),items,meta:{members,std:stdBase}})],{type:"application/json"}));
 $("#bkIn").onclick=()=>$("#bkFile").click();
 $("#bkFile").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
@@ -681,7 +1029,9 @@ $("#bkFile").onchange=async e=>{
     const o=JSON.parse(await f.text()); if(o.app!=="kpop-clothes"||!Array.isArray(o.items)) throw 0;
     let n=0; for(const it of o.items){ if(!it?.code) continue; const cur=items.find(x=>x.code===it.code);
       if(!cur||(it.updatedAt||0)>(cur.updatedAt||0)){await IDB.put(it); n++} }
-    items=await IDB.all(); renderLib(); toast(`匯入完成,更新了 ${n} 件`);
+    if(o.meta){ if(Array.isArray(o.meta.members)) members=MEM_IDS.map((id,i)=>({...members[i],...(o.meta.members.find(x=>x.id===id)||{})}));
+      if(o.meta.std) stdBase={img:"",marks:{},...o.meta.std}; await saveMeta(); }
+    items=await IDB.all(); showView(view); toast(`匯入完成,更新了 ${n} 件`);
   }catch(err){toast("這不是衣帽間工坊的備份檔")}
 };
 $("#verNote").textContent="版本 "+(window.APP_VERSION||"開發版");
@@ -690,9 +1040,11 @@ if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
 /* ---------- 啟動 ---------- */
 (async()=>{
   syncKeybar();
-  try{ await IDB.open(); items=await IDB.all(); navigator.storage?.persist?.(); $("#storeNote").textContent="資料存在這台裝置裡。換裝置時用「設定」裡的匯出、匯入備份同步。"; }
+  try{ await IDB.open(); items=await IDB.all(); navigator.storage?.persist?.();
+    const mm=await IDB.getMeta("members"); if(Array.isArray(mm)) members=MEM_IDS.map((id,i)=>({...members[i],...(mm.find(x=>x.id===id)||{})}));
+    const sb=await IDB.getMeta("std"); if(sb) stdBase={img:"",marks:{},...sb}; $("#storeNote").textContent="資料存在這台裝置裡。換裝置時用「設定」裡的匯出、匯入備份同步。"; }
   catch(e){ $("#storeNote").textContent="無法開啟本機資料庫,資料不會被保存。"; }
-  renderLib();
+  renderNav(); renderStd(); renderLib();
 })();
 </script>
 </body>
