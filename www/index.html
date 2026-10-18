@@ -357,7 +357,7 @@ function buildPrompt(it){
   const base=buildDressPrompt(it); const S=FILES[it.file]?.sheets[it.sheet];
   if(!S||S.noGen) return base;
   const what=it.file==="hair"?"her new hairstyle (all of her hair)":it.sheet==="special"?"the added makeup details":"the newly added item";
-  return `${base} Then output ONLY ${what}: erase her face, skin, body, the white clothes and everything else, and fill all of it with flat solid ${KEYS[keyOf(it)].w}. Keep ${what} at exactly the same position, size, shape and angle as when she was wearing it, on the same canvas size and framing. No shadows on the background.`;
+  return `${base} Then output ONLY ${what}: erase her face, skin, body, the white clothes and everything else, and fill all of it with flat solid ${KEYS[keyOf(it)].w}. Keep ${what} exactly as it looks while she is wearing it, at the same position, size, shape and angle, on the same canvas size and framing. Wherever her arms or hands are in front of it, leave those areas as the same flat background color too — do not fill in or redraw the hidden parts. No shadows on the background.`;
 }
 
 /* ---------- 狀態 ---------- */

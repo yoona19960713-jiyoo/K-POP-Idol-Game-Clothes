@@ -129,11 +129,13 @@ function chromaKey(src,key,lo=30,hi=90){
   for(let i=0;i<d.length;i+=4){
     let r=d[i],gg=d[i+1],b=d[i+2],k;
     if(key==="magenta") k=Math.min(r,b)-gg; else if(key==="blue") k=b-Math.max(r,gg); else k=gg-Math.max(r,b);
-    if(k<=lo) continue;
-    const a=k>=hi?0:1-(k-lo)/(hi-lo);
-    if(key==="magenta"){const m=Math.min(r,b)-gg;d[i]=r-m;d[i+2]=b-m}
+    if(k<=0) continue;
+    /* 去色偏:半透明的紗、髮絲邊緣也會透出背景色,一律壓掉 */
+    if(key==="magenta"){d[i]=r-k;d[i+2]=b-k}
     else if(key==="blue"){d[i+2]=Math.max(r,gg)}
     else{d[i+1]=Math.max(r,b)}
+    if(k<=lo) continue;
+    const a=k>=hi?0:1-(k-lo)/(hi-lo);
     d[i+3]=Math.round(d[i+3]*a);
   }
   g.putImageData(im,0,0); return c;
