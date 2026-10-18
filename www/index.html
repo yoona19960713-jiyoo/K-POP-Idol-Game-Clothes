@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>K-POP Idol Game・衣帽間工坊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#86507A">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --paper:#F6F1F4; --card:#FFFFFF; --card2:#FAF6F9; --ink:#2B2130; --muted:#786A7C; --line:#E6DAE3;
+  --accent:#86507A; --accent-ink:#FFFFFF; --accent-soft:#F2E4EE; --good:#2F8460; --bad:#BC3548; --warn:#9A6B12;
+  --serif:"Noto Serif TC","Songti TC",serif; --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#1A151D; --card:#251E29; --card2:#2C2431; --ink:#F2EAF0; --muted:#AA9AAA; --line:#3A3040;
+  --accent:#D69BC2; --accent-ink:#22182A; --accent-soft:#3A2A37; --good:#6BC79E; --bad:#F07A8B; --warn:#E3B45C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#1A151D; --card:#251E29; --card2:#2C2431; --ink:#F2EAF0; --muted:#AA9AAA; --line:#3A3040;
+  --accent:#D69BC2; --accent-ink:#22182A; --accent-soft:#3A2A37; --good:#6BC79E; --bad:#F07A8B; --warn:#E3B45C; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+header h1{font-family:var(--serif);font-weight:900;font-size:26px;margin:0;letter-spacing:.02em}
+header p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--muted)}
+.stats b{color:var(--ink);font-size:15px;margin-right:3px}
+section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:16px}
+h2{font-family:var(--serif);font-size:19px;margin:0 0 10px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:18px;text-align:center;color:var(--muted);background:var(--card2);cursor:pointer}
+.drop.over{border-color:var(--accent);color:var(--ink)}
+.drop b{color:var(--ink)}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.thumbs figure{margin:0;position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.thumbs img{width:100%;height:100%;object-fit:cover}
+.thumbs button{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:13px;line-height:1}
+label.lbl{display:block;font-size:13px;color:var(--muted);margin:12px 0 5px}
+textarea,input[type=text],input[type=number],select{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+textarea{min-height:64px;resize:vertical}
+.cats{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:14px}
+.chipbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 14px;font-size:14px}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:default}
+.status{font-size:14px;color:var(--muted);margin-top:10px;white-space:pre-wrap}
+.status.err{color:var(--bad)}
+.note{font-size:12px;color:var(--muted)}
+.cards{display:grid;gap:12px;margin-top:12px}
+.card{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card2)}
+.card.off{opacity:.5}
+.card-h{display:flex;gap:10px;align-items:flex-start}
+.card-h .grow{flex:1;min-width:0}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px 10px;margin-top:8px}
+.grid2 label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.grid2 input,.grid2 select{padding:6px 8px;font-size:14px}
+.axes{display:grid;grid-template-columns:auto 1fr auto 28px;gap:4px 8px;align-items:center;font-size:12px;margin-top:10px}
+.axes .l{text-align:right;color:var(--muted)}.axes .r{color:var(--muted)}
+.axes input[type=range]{width:100%;accent-color:var(--accent)}
+.axes output{font-variant-numeric:tabular-nums;text-align:right}
+.prompt{margin-top:10px}
+.prompt textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:110px;background:var(--card)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.tabs.sub .chipbtn{font-size:13px;padding:4px 10px}
+.tabs .count{opacity:.6;margin-left:4px;font-size:12px}
+.lib{display:grid;gap:8px}
+.li{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px;background:var(--card2)}
+.li img,.li .ph{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--accent-soft)}
+.li .nm{font-weight:700;font-size:14px}
+.li .meta{font-size:12px;color:var(--muted)}
+.tagrow{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.tag{font-size:11px;border-radius:6px;padding:0 6px;background:var(--accent-soft)}
+.st{font-size:12px;border-radius:999px;padding:1px 8px;border:1px solid currentColor;white-space:nowrap}
+.st0{color:var(--muted)}.st1{color:var(--warn)}.st2{color:#3F7FA8}.st3{color:var(--good)}
+.li .acts{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.filters{display:grid;grid-template-columns:1fr 150px;gap:8px;margin-bottom:10px}
+.empty{color:var(--muted);font-size:14px;padding:16px 0;text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:10px;font-size:14px;z-index:60;max-width:90vw}
+.hidden{display:none!important}
+dialog{border:0;border-radius:16px;padding:0;background:var(--card);color:var(--ink);width:min(720px,94vw);max-height:90vh}
+dialog::backdrop{background:rgba(20,12,22,.5)}
+.keybar{margin-top:12px;background:var(--accent-soft);border-radius:12px;padding:10px 12px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.steps{margin:6px 0 0;padding-left:20px;font-size:14px}
+.steps li{margin:3px 0}
+.blist{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.blist li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card2);font-size:14px}
+.blist li .r{font-size:12px;white-space:nowrap}
+.blist li.run .r{color:var(--accent)}
+.blist li.ok .r{color:var(--good)}
+.blist li.bad .r{color:var(--bad)}
+.blist li .d{font-size:12px;color:var(--muted);grid-column:1/-1}
+dialog .in{padding:16px;overflow:auto;max-height:90vh}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="row" style="justify-content:space-between;align-items:flex-start"><h1>衣帽間素材工坊</h1><button class="btn sm" id="openSet">設定</button></div>
+    <p>放入穿搭照片或商品截圖,由 Gemini 自動拆出每件單品、填好屬性,並產出 GPT 生圖提示詞。</p>
+    <div class="stats" id="stats"></div>
+    <div class="keybar hidden" id="keybar">還沒設定 Gemini API 金鑰,分析功能無法使用。<button class="btn sm pri" id="keyGo">前往設定</button></div>
+  </header>
+
+  <section id="newSec">
+    <h2>新增素材</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="選擇或拖入圖片"><b>點這裡選照片</b>,或把圖片拖進來<br><span class="note">可一次放多張同一套穿搭的不同角度。臉部不會被分析,只看衣物。</span></div>
+    <input type="file" id="file" accept="image/*" multiple class="hidden">
+    <div class="thumbs" id="thumbs"></div>
+    <label class="lbl" for="hint">補充說明(可不填)</label>
+    <textarea id="hint" placeholder="例如:只要外套和靴子/改成黑紅配色/這套是暗黑搖滾概念,帶一點恐怖童謠元素"></textarea>
+    <label class="lbl">要拆出的大項</label>
+    <div class="cats" id="cats"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn pri" id="go">分析並產生提示詞</button>
+      <button class="btn" id="goText">沒有照片,依說明設計</button>
+      <button class="btn hidden" id="stop">停止</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div id="review" class="hidden">
+      <h3 style="margin:18px 0 0;font-size:16px">分析結果<span class="note" id="setInfo" style="margin-left:8px"></span></h3>
+      <p class="note">確認或修改後收入資料庫。取消勾選的單品不會收入。</p>
+      <div class="cards" id="cards"></div>
+      <div class="row" style="margin-top:12px"><button class="btn pri" id="saveAll">收入資料庫</button><button class="btn" id="discard">放棄這批</button></div>
+    </div>
+  </section>
+
+  <section id="batchSec">
+    <h2>批次模式</h2>
+    <p class="note" style="margin-top:-4px">一行寫一套造型的描述,按開始後會一套接一套自動設計、拆成單品,直接收進資料庫,不用逐件確認。要拆出的大項沿用上方「新增素材」的設定。</p>
+    <label class="lbl" for="batchIn">造型描述(一行一套)</label>
+    <textarea id="batchIn" style="min-height:140px" placeholder="暗黑搖滾紅色舞台服,帶一點恐怖童謠元素&#10;夏日海邊白色洋裝配草帽和涓鞋&#10;機場時尚:米色西裝外套、寬褲、墨鏡&#10;校園風練習服,運動外套配百褶裙"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="btn pri" id="bGo">開始批次</button>
+      <button class="btn hidden" id="bStop">停止(做完目前這套後)</button>
+      <span class="note" id="bCount"></span>
+    </div>
+    <ol class="blist" id="bList"></ol>
+  </section>
+
+  <section>
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">資料庫</h2>
+      <div class="row"><button class="btn sm" id="expOne">匯出這個大項</button><button class="btn sm pri" id="expAll">匯出全部(五個 Excel)</button></div></div>
+    <div class="tabs" id="fileTabs" style="margin-top:12px"></div>
+    <div class="tabs sub" id="sheetTabs"></div>
+    <div class="filters"><input type="text" id="q" placeholder="搜尋名稱、標籤、顏色"><select id="fst" aria-label="製作進度"><option value="">全部進度</option></select></div>
+    <div class="lib" id="lib"></div>
+    <p class="note" id="storeNote"></p>
+  </section>
+</div>
+
+<dialog id="dlg"><div class="in" id="dlgIn"></div></dialog>
+<dialog id="setDlg"><div class="in">
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0">設定</h2><button class="btn sm" id="setClose">關閉</button></div>
+  <h3 style="font-size:15px;margin:16px 0 4px">Gemini API 金鑰</h3>
+  <p class="note">金鑰只存在這台裝置,不會上傳到任何地方。手機和電腦要各自貼一次。</p>
+  <div class="row"><input type="password" id="keyIn" placeholder="貼上金鑰" autocomplete="off" style="flex:1;min-width:200px"><button class="btn sm" id="keyShow">顯示</button></div>
+  <label class="lbl" for="modelIn">使用的模型</label>
+  <select id="modelIn"><option value="gemini-2.5-flash">gemini-2.5-flash(推薦,看圖較準)</option><option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite(較快,每日次數較多)</option><option value="custom">自行輸入…</option></select>
+  <input type="text" id="modelCustom" class="hidden" placeholder="例如 gemini-3.5-flash" style="margin-top:6px">
+  <div class="row" style="margin-top:10px"><button class="btn pri" id="keySave">儲存</button><button class="btn" id="keyTest">測試連線</button><button class="btn danger" id="keyDel">清除金鑰</button></div>
+  <div class="status" id="keyStatus"></div>
+  <details style="margin-top:12px"><summary class="note" style="cursor:pointer">怎麼取得金鑰?</summary>
+    <ol class="steps"><li>用 Google 帳號登入 aistudio.google.com</li><li>左側點「Get API key」</li><li>按「Create API key」,複製那串文字</li><li>貼到上面的框,按儲存,再按測試連線</li></ol>
+    <p class="note">免費層級有每分鐘與每日次數上限,每日額度約在台灣時間下午三、四點重置。免費層級送出的內容可能被 Google 用來改進產品,請不要放私人照片。</p></details>
+  <h3 style="font-size:15px;margin:20px 0 4px">備份與同步</h3>
+  <p class="note">資料存在這台裝置。要在手機和電腦之間同步,在一邊匯出備份,另一邊匯入即可;同編號的單品會保留較新的版本。</p>
+  <div class="row"><button class="btn" id="bkOut">匯出備份</button><button class="btn" id="bkIn">匯入備份</button><input type="file" id="bkFile" accept=".json,application/json" class="hidden"></div>
+  <div id="apkBox" style="margin-top:20px"><h3 style="font-size:15px;margin:0 0 4px">手機安裝版</h3><p class="note">Android 手機可以下載安裝檔,裝成獨立 App。</p><a class="btn" href="KPOP-Clothes.apk" download style="display:inline-block;text-decoration:none">下載 APK</a></div>
+  <p class="note" id="verNote" style="margin-top:16px"></p>
+</div></dialog>
+
+<script src="version.js"></script>
+<script>
+"use strict";
+/* ---------- 分類設定(對應五個 Excel 檔與分頁) ---------- */
+const FILES={
+  hair:{n:"髮型",sheets:{
+    long:{n:"長髮",p:"HRL",ex:["瀏海","髮色","可染色"]},
+    mid:{n:"中長髮",p:"HRM",ex:["瀏海","髮色","可染色"]},
+    short:{n:"短髮",p:"HRS",ex:["瀏海","髮色","可染色"]},
+    updo:{n:"綁髮與編髮",p:"HRU",ex:["綁法","瀏海","髮色","可染色"]}}},
+  makeup:{n:"妝容",sheets:{
+    eye:{n:"眼妝",p:"EYE",ex:["眼影色","眼線","亮片或珠光"],noGen:true},
+    lip:{n:"唇妝",p:"LIP",ex:["色號","質地"],noGen:true},
+    cheek:{n:"腮紅與修容",p:"CHK",ex:["色號","位置"],noGen:true},
+    special:{n:"特殊妝",p:"SPM",ex:["位置","元素"]},
+    full:{n:"整套妝",p:"FUL",ex:["組成"],noGen:true}}},
+  clothes:{n:"服裝",sheets:{
+    top:{n:"上衣",p:"TOP",ex:["袖型","領型","衣長"]},
+    skirt:{n:"裙子",p:"SKT",ex:["長度","版型"]},
+    pants:{n:"褲子",p:"PNT",ex:["長度","版型"]},
+    dress:{n:"連身裙與連身褲",p:"DRS",ex:["長度","袖型","領型"]},
+    outer:{n:"外套",p:"OUT",ex:["衣長","袖型","穿法"]}}},
+  shoes:{n:"鞋襪",sheets:{
+    shoes:{n:"鞋子",p:"SHO",ex:["鞋型","跟高"]},
+    socks:{n:"襪子",p:"SCK",ex:["長度"]},
+    hosiery:{n:"絲襪與褲襪",p:"HOS",ex:["長度","透明度"]}}},
+  acc:{n:"飾品",sheets:{
+    head:{n:"頭飾",p:"HDA",ex:["位置"]},
+    ear:{n:"耳飾",p:"EAR",ex:["左右"]},
+    neck:{n:"頸飾",p:"NCK",ex:["長度"]},
+    hand:{n:"手飾與手套",p:"HND",ex:["左右"]},
+    waist:{n:"腰飾",p:"WST",ex:["樣式"]},
+    held:{n:"手持物",p:"HLD",ex:["拿法"]}}},
+};
+const AXES=[["sweet","甜美","冷豔"],["pure","清純","性感"],["lively","活潑","優雅"],["fancy","華麗","簡約"],["retro","復古","未來"]];
+const OCC=["舞台","寫真","日常","機場","練習"];
+const RAR=["N","R","SR","SSR"];
+const STATUS=["待生成","已生成","已切圖","已進遊戲"];
+const sheetKey=(f,s)=>f+"/"+s;
+const SHEET_LIST=Object.entries(FILES).flatMap(([f,F])=>Object.entries(F.sheets).map(([s,S])=>({f,s,...S})));
+
+/* ---------- 提示詞範本 ---------- */
+const BASE="Use the attached image as the exact base. Keep the pose, body, proportions, face, hair, framing, lighting and green background completely identical — do not move or redraw anything else.";
+function buildPrompt(it){
+  const S=FILES[it.file]?.sheets[it.sheet]; if(!S) return "";
+  if(S.noGen) return "(程式上色,不需生圖)";
+  const d=(it.desc||"").trim()||"(description)";
+  const nologo=" Everything is opaque and fully lined, styled as tasteful K-pop idol fashion. No logos, brand names or printed text.";
+  switch(it.sheet){
+    case "top": return `${BASE} Only dress her in: ${d}, replacing the white top. Keep the white shorts and socks unchanged.${nologo}`;
+    case "skirt": case "pants": return `${BASE} Only dress her in: ${d}, replacing the white shorts. Keep the white top and socks unchanged.${nologo}`;
+    case "dress": return `${BASE} Only dress her in: ${d}, replacing both the white top and the white shorts. Keep the socks unchanged.${nologo}`;
+    case "outer": return `${BASE} Only add: ${d}, worn over her white top. Keep the white top, shorts and socks unchanged underneath.${nologo}`;
+    case "shoes": return `${BASE} Only dress her feet in: ${d}, replacing the white socks; bare feet inside the shoes unless socks are described.${nologo}`;
+    case "socks": return `${BASE} Only change her socks to: ${d}, replacing the white ankle socks. Keep everything else unchanged.${nologo}`;
+    case "hosiery": return `${BASE} Only add: ${d} on her legs, under the white shorts, replacing the white socks. Keep everything else unchanged.${nologo}`;
+    case "long": case "mid": case "short": case "updo":
+      return `Use the attached image as the exact base. Keep her face, expression, body, pose, outfit, framing, lighting and green background completely identical. Only change her hairstyle to: ${d}. No hair accessories unless described.`;
+    case "special": return `Use the attached image as the exact base. Keep everything completely identical. Only add this makeup detail on her face: ${d}.`;
+    default: return `${BASE} Only add this accessory: ${d}. Keep her outfit and everything else unchanged.${nologo}`;
+  }
+}
+
+/* ---------- 狀態 ---------- */
+let items=[], pending=[], pendingSet=null, photos=[], ctl=null;
+let curFile="clothes", curSheet="top";
+const KEY_K="kpopClothes.geminiKey", KEY_M="kpopClothes.model";
+const apiKey=()=>localStorage.getItem(KEY_K)||"";
+const model=()=>localStorage.getItem(KEY_M)||"gemini-2.5-flash";
+
+/* ---------- 本機資料庫(IndexedDB) ---------- */
+const IDB={db:null,
+  open(){return new Promise((ok,no)=>{const r=indexedDB.open("kpop-clothes",1);r.onupgradeneeded=()=>r.result.createObjectStore("items",{keyPath:"code"});r.onsuccess=()=>{this.db=r.result;ok()};r.onerror=()=>no(r.error)})},
+  st(m){return this.db.transaction("items",m).objectStore("items")},
+  req(q){return new Promise((ok,no)=>{q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)})},
+  all(){return this.req(this.st("readonly").getAll())},
+  put(v){return this.req(this.st("readwrite").put(v))},
+  del(k){return this.req(this.st("readwrite").delete(k))},
+};
+
+/* ---------- Gemini ---------- */
+async function toJpegB64(file){
+  const bmp=await createImageBitmap(file); const s=Math.min(1,1280/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+  c.getContext("2d").drawImage(bmp,0,0,c.width,c.height); return c.toDataURL("image/jpeg",0.85).split(",")[1];
+}
+async function aiJSON(prompt,files,signal){
+  const key=apiKey(); if(!key) throw {code:"no_key"};
+  const parts=[{text:prompt}];
+  for(const f of files||[]) parts.push({inline_data:{mime_type:"image/jpeg",data:await toJpegB64(f)}});
+  let res;
+  try{
+    res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model())}:generateContent`,{method:"POST",signal,
+      headers:{"Content-Type":"application/json","x-goog-api-key":key},
+      body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0.6}})});
+  }catch(e){ if(e?.name==="AbortError") throw {code:"cancelled"}; throw {code:"network"} }
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok){
+    const raw=JSON.stringify(j); const msg=j?.error?.message||"";
+    if(res.status===429) throw {code:/PerDay|per day|daily/i.test(raw)?"rate_day":"rate_minute",message:msg};
+    if(res.status===401||res.status===403||/API key/i.test(msg)) throw {code:"bad_key",message:msg};
+    if(res.status===404) throw {code:"bad_model",message:msg};
+    if(/location/i.test(msg)) throw {code:"region",message:msg};
+    throw {code:"server",message:msg};
+  }
+  if(j.promptFeedback?.blockReason) throw {code:"blocked"};
+  const c=j.candidates?.[0];
+  if(!c||c.finishReason==="SAFETY"||c.finishReason==="PROHIBITED_CONTENT"||c.finishReason==="BLOCKLIST") throw {code:"blocked"};
+  const text=(c.content?.parts||[]).map(p=>p.text||"").join("");
+  try{return JSON.parse(text)}catch(e){const m=text.match(/[\[{][\s\S]*[\]}]/); if(m){try{return JSON.parse(m[0])}catch(_){}} throw {code:"invalid_json"}}
+}
+let catOn=new Set(Object.keys(FILES));
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let tt; function toast(t){let e=$("#toast");if(!e){e=document.createElement("div");e.id="toast";e.className="toast";e.setAttribute("role","status");document.body.appendChild(e)}e.textContent=t;e.classList.remove("hidden");clearTimeout(tt);tt=setTimeout(()=>e.classList.add("hidden"),2600)}
+
+/* ---------- 新增區 ---------- */
+function renderCats(){
+  $("#cats").innerHTML=Object.entries(FILES).map(([k,F])=>`<button class="chipbtn" data-cat="${k}" aria-pressed="${catOn.has(k)}">${F.n}</button>`).join("");
+  document.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{const k=b.dataset.cat;catOn.has(k)?catOn.delete(k):catOn.add(k);if(!catOn.size)catOn.add(k);renderCats()});
+}
+function renderThumbs(){
+  $("#thumbs").innerHTML=photos.map((p,i)=>`<figure><img src="${p.url}" alt=""><button data-rm="${i}" aria-label="移除">×</button></figure>`).join("");
+  document.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{URL.revokeObjectURL(photos[+b.dataset.rm].url);photos.splice(+b.dataset.rm,1);renderThumbs()});
+}
+async function addFiles(fl){
+  const list=[...fl];
+  const max=5;
+  for(const f of list){ if(!f.type.startsWith("image/")) continue; if(photos.length>=max){toast(`一次最多 ${max} 張`);break} photos.push({file:f,url:URL.createObjectURL(f)}) }
+  renderThumbs();
+}
+const drop=$("#drop");
+drop.onclick=()=>$("#file").click();
+drop.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();$("#file").click()}};
+$("#file").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
+drop.addEventListener("drop",e=>addFiles(e.dataTransfer.files));
+document.addEventListener("paste",e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length) addFiles(fs)});
+
+function sheetGuide(){
+  return Object.entries(FILES).filter(([k])=>catOn.has(k)).map(([f,F])=>
+    `- file "${f}" (${F.n}): `+Object.entries(F.sheets).map(([s,S])=>`sheet "${s}" (${S.n}; extra fields: ${S.ex.join("、")})`).join("; ")).join("\n");
+}
+function makePrompt(hasPhotos,hint){
+  return `你是 K-POP 女團換裝遊戲的服裝設計助理。${hasPhotos?"附上的圖片是穿搭照片或商品截圖。只分析衣物、髮型、妝容與配件;不要辨認或描述照片中人物是誰,也不要描述臉部五官。":"沒有圖片,請依使用者的說明設計一套原創造型。"}
+
+使用者補充說明:${hint||"(無)"}
+
+請把${hasPhotos?"圖片中看得到的":"這套造型的"}每一件單品拆開,只輸出屬於以下大項的單品:
+${sheetGuide()}
+
+規則:
+- 一件衣物一個項目。整套穿搭要拆成上衣、下身、鞋子、各個飾品等。看不清楚或被遮住的部分合理補完。
+- 如果使用者說明只要某些單品,就只輸出那些。
+- 不要照抄品牌標誌或印刷文字;若原本有,改成無字的設計。
+- desc 會送進圖像生成器,而模板人物身材豐滿,容易被誤判為性感內容而擋下。所以 desc 絕對不要用 corset、bustier、lingerie、bra、sheer、see-through、transparent、tight、skin-tight、low-cut、plunging、sexy、revealing 這類字;改用 structured bodice、fitted stage top、sweetheart neckline、opaque fabric、layered tulle overlay 等中性的服裝用語,並寫出布料不透明。即使原圖是馬甲或透膚設計,也這樣改寫描述。
+- 妝容(眼妝、唇妝、腮紅、整套妝)只有在圖中很明顯或使用者要求時才輸出。
+- 髮型只有在使用者要求或大項包含髮型且圖中髮型很有特色時才輸出。
+- desc 用英文,寫成可以直接放進生圖提示詞的一段單品描述(形狀、長度、版型、顏色、材質、裝飾細節、位置),不要提到人物、姿勢或背景,30~70 個英文字。
+- attrs 五個軸,每個整數 -3~3:sweet(負=甜美,正=冷豔)、pure(負=清純,正=性感)、lively(負=活潑,正=優雅)、fancy(負=華麗,正=簡約)、retro(負=復古,正=未來)。
+- tags 給 2~5 個繁體中文風格標籤(例如:暗黑、搖滾、童話、夏日、校園、夢幻、街頭、哥德、甜酷、Y2K)。
+- occasions 從 ${OCC.join("、")} 中選 1~3 個。
+- rarity 依設計複雜度與華麗程度從 N、R、SR、SSR 選一個。
+- extra 依該分頁的 extra fields 填繁體中文短答。
+
+只回覆一個 JSON 物件,格式:
+{"setName":"整套的繁中名稱","items":[{"file":"clothes","sheet":"top","name":"繁中單品名稱","subtype":"細類型(繁中,例如:馬甲、襯衫、百褶裙)","colorMain":"主色","colorSub":"副色或空字串","material":"材質","desc":"English description","attrs":{"sweet":0,"pure":0,"lively":0,"fancy":0,"retro":0},"tags":["暗黑"],"occasions":["舞台"],"rarity":"SR","extra":{"袖型":"長袖"},"notes":"繁中備註,可空"}]}`;
+}
+async function thumbOf(file){
+  try{
+    const bmp=await createImageBitmap(file); const s=200/Math.max(bmp.width,bmp.height);
+    const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height); return c.toDataURL("image/jpeg",0.72);
+  }catch(e){return ""}
+}
+function setBusy(b,msg){
+  $("#go").disabled=b; $("#goText").disabled=b; $("#stop").classList.toggle("hidden",!b);
+  const st=$("#status"); st.classList.remove("err"); st.textContent=msg||"";
+}
+const ERR={no_key:"還沒設定 Gemini API 金鑰,請到右上角「設定」貼上。",bad_key:"金鑰無效或沒有權限,請到設定重新貼上並測試連線。",bad_model:"找不到這個模型名稱,請到設定改回推薦的模型。",rate_minute:"每分鐘次數到上限了,等一分鐘再試。",rate_day:"今天的免費額度用完了,台灣時間下午三、四點後會重置。",blocked:"這次的內容被 Gemini 的安全機制擋下,換張圖或改一下說明再試。",network:"連不上 Gemini,請確認網路。",region:"目前所在地區無法使用 Gemini API。",server:"Gemini 暫時出錯,稍後再試。",not_granted:"沒有允許這個頁面使用 Claude,分析功能無法使用。",sampling_disabled:"這個帳號目前無法使用 Claude。",rate_limited:"使用次數暫時太多,請稍後再試。",image_rejected:"有圖片無法讀取,請換一張(JPG、PNG、WebP)。",images_unavailable:"這個檢視無法傳送圖片。",refused:"這次的內容無法分析,換張圖或改一下說明再試。",invalid_json:"分析結果格式不完整,請再按一次。",prompt_too_large:"說明太長了,請縮短。",session_expired:"請重新登入後再試。"};
+async function analyze(withPhotos){
+  if(!apiKey()){openSettings();toast("先在設定貼上 Gemini API 金鑰");return}
+  if(withPhotos&&!photos.length){toast("先放入照片或截圖");return}
+  const hint=$("#hint").value.trim();
+  if(!withPhotos&&!hint){toast("請在補充說明寫下想要的造型");return}
+  ctl=new AbortController();
+  setBusy(true,"分析中…通常需要十幾秒到半分鐘。");
+  try{
+    const res=await aiJSON(makePrompt(withPhotos,hint),withPhotos?photos.map(p=>p.file):[],ctl.signal);
+    const list=Array.isArray(res?.items)?res.items:[];
+    if(!list.length){setBusy(false,"沒有找到符合所選大項的單品。");return}
+    const th=withPhotos?await thumbOf(photos[0].file):"";
+    pendingSet={name:String(res.setName||"未命名套裝"),source:withPhotos?(photos.map(p=>p.file.name).join("、")):"文字說明:"+hint.slice(0,60)};
+    pending=list.map(x=>normalize(x,th)).filter(Boolean);
+    setBusy(false,`找到 ${pending.length} 件單品。`);
+    renderReview();
+  }catch(e){
+    if(e?.code==="cancelled"){setBusy(false,"已停止。");return}
+    setBusy(false,ERR[e?.code]||"分析失敗,請再試一次。"); $("#status").classList.add("err");
+  }
+}
+function normalize(x,thumb){
+  let f=String(x.file||""), s=String(x.sheet||"");
+  if(!FILES[f]){const hit=SHEET_LIST.find(z=>z.s===s); if(!hit) return null; f=hit.f}
+  if(!FILES[f].sheets[s]) s=Object.keys(FILES[f].sheets)[0];
+  const attrs={}; AXES.forEach(([k])=>attrs[k]=Math.max(-3,Math.min(3,Math.round(Number(x.attrs?.[k])||0))));
+  const extra={}; FILES[f].sheets[s].ex.forEach(k=>extra[k]=String(x.extra?.[k]??""));
+  return {keep:true,file:f,sheet:s,name:String(x.name||"未命名"),subtype:String(x.subtype||""),colorMain:String(x.colorMain||""),colorSub:String(x.colorSub||""),
+    material:String(x.material||""),desc:String(x.desc||""),attrs,tags:(Array.isArray(x.tags)?x.tags:[]).map(String).slice(0,6),
+    occasions:(Array.isArray(x.occasions)?x.occasions:[]).map(String).filter(o=>OCC.includes(o)),rarity:RAR.includes(x.rarity)?x.rarity:"R",
+    extra,notes:String(x.notes||""),price:"",thumb};
+}
+$("#go").onclick=()=>analyze(true);
+$("#goText").onclick=()=>analyze(false);
+$("#stop").onclick=()=>ctl?.abort();
+
+/* ---------- 編輯卡片(新結果與資料庫共用) ---------- */
+function editorHTML(it,i,mode){
+  const opts=SHEET_LIST.map(z=>`<option value="${z.f}|${z.s}" ${z.f===it.file&&z.s===it.sheet?"selected":""}>${FILES[z.f].n}/${z.n}</option>`).join("");
+  const S=FILES[it.file].sheets[it.sheet];
+  const ex=S.ex.map(k=>`<label>${esc(k)}<input type="text" data-ex="${esc(k)}" value="${esc(it.extra?.[k]??"")}"></label>`).join("");
+  return `<div class="card ${it.keep===false?"off":""}" data-i="${i}">
+    <div class="card-h">${mode==="new"?`<input type="checkbox" data-f="keep" ${it.keep!==false?"checked":""} aria-label="收入資料庫" style="margin-top:6px;width:18px;height:18px">`:""}
+      <div class="grow"><input type="text" data-f="name" value="${esc(it.name)}" aria-label="名稱" style="font-weight:700">
+      ${it.code?`<div class="code">${esc(it.code)}</div>`:""}</div></div>
+    <div class="grid2">
+      <label>分類<select data-f="cat">${opts}</select></label>
+      <label>細類型<input type="text" data-f="subtype" value="${esc(it.subtype)}"></label>
+      <label>主色<input type="text" data-f="colorMain" value="${esc(it.colorMain)}"></label>
+      <label>副色<input type="text" data-f="colorSub" value="${esc(it.colorSub)}"></label>
+      <label>材質<input type="text" data-f="material" value="${esc(it.material)}"></label>
+      <label>稀有度<select data-f="rarity">${RAR.map(r=>`<option ${r===it.rarity?"selected":""}>${r}</option>`).join("")}</select></label>
+      <label>價格<input type="number" data-f="price" value="${esc(it.price)}"></label>
+      ${mode==="lib"?`<label>製作進度<select data-f="status">${STATUS.map((s,k)=>`<option value="${k}" ${k===(it.status||0)?"selected":""}>${s}</option>`).join("")}</select></label>`:""}
+      ${ex}
+      <label style="grid-column:1/-1">風格標籤(用頓號或逗號分隔)<input type="text" data-f="tags" value="${esc(it.tags.join("、"))}"></label>
+      <label style="grid-column:1/-1">適合場合<span class="cats">${OCC.map(o=>`<button type="button" class="chipbtn" data-occ="${o}" aria-pressed="${it.occasions.includes(o)}" style="font-size:12px;padding:2px 10px">${o}</button>`).join("")}</span></label>
+    </div>
+    <div class="axes">${AXES.map(([k,l,r])=>`<span class="l">${l}</span><input type="range" min="-3" max="3" step="1" data-ax="${k}" value="${it.attrs[k]}" aria-label="${l}到${r}"><span class="r">${r}</span><output>${it.attrs[k]>0?"+":""}${it.attrs[k]}</output>`).join("")}</div>
+    <div class="prompt"><label class="lbl" style="margin-top:4px">單品描述(英文,會套進提示詞)</label><input type="text" data-f="desc" value="${esc(it.desc)}">
+      <label class="lbl">GPT 提示詞</label><textarea readonly data-prompt>${esc(buildPrompt(it))}</textarea>
+      <div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-copy>複製提示詞</button>${mode==="lib"?`<label class="note" style="flex:1">圖檔名稱 <input type="text" data-f="imageFile" value="${esc(it.imageFile||"")}" style="padding:4px 8px"></label>`:""}</div>
+      <label class="lbl">備註</label><input type="text" data-f="notes" value="${esc(it.notes)}"></div>
+  </div>`;
+}
+function bindEditor(root,getItem,onChange){
+  root.querySelectorAll(".card").forEach(card=>{
+    const it=getItem(+card.dataset.i);
+    const refresh=()=>{card.querySelector("[data-prompt]").value=buildPrompt(it);onChange&&onChange(it)};
+    card.querySelectorAll("[data-f]").forEach(el=>{
+      const f=el.dataset.f;
+      el.addEventListener(el.type==="checkbox"||el.tagName==="SELECT"?"change":"input",()=>{
+        if(f==="keep"){it.keep=el.checked;card.classList.toggle("off",!el.checked);return}
+        if(f==="cat"){const [a,b]=el.value.split("|");it.file=a;it.sheet=b;const ex={};FILES[a].sheets[b].ex.forEach(k=>ex[k]=it.extra?.[k]??"");it.extra=ex;onChange&&onChange(it,true);return}
+        if(f==="tags"){it.tags=el.value.split(/[、,,]\s*/).map(s=>s.trim()).filter(Boolean)}
+        else if(f==="status"){it.status=+el.value}
+        else it[f]=el.value;
+        refresh();
+      });
+    });
+    card.querySelectorAll("[data-ex]").forEach(el=>el.addEventListener("input",()=>{it.extra[el.dataset.ex]=el.value;refresh()}));
+    card.querySelectorAll("[data-ax]").forEach(el=>el.addEventListener("input",()=>{const v=+el.value;it.attrs[el.dataset.ax]=v;el.nextElementSibling.nextElementSibling.textContent=(v>0?"+":"")+v;refresh()}));
+    card.querySelectorAll("[data-occ]").forEach(el=>el.onclick=()=>{const o=el.dataset.occ;it.occasions=it.occasions.includes(o)?it.occasions.filter(x=>x!==o):[...it.occasions,o];el.setAttribute("aria-pressed",it.occasions.includes(o));refresh()});
+    card.querySelector("[data-copy]").onclick=()=>copyText(card.querySelector("[data-prompt]"));
+  });
+}
+async function copyText(ta){
+  try{await navigator.clipboard.writeText(ta.value);toast("提示詞已複製")}
+  catch(e){ta.focus();ta.select();toast("已選取,請長按或按 Ctrl+C 複製")}
+}
+function renderReview(){
+  $("#review").classList.toggle("hidden",!pending.length);
+  $("#setInfo").textContent=pendingSet?`套裝:${pendingSet.name}`:"";
+  $("#cards").innerHTML=pending.map((it,i)=>editorHTML(it,i,"new")).join("");
+  bindEditor($("#cards"),i=>pending[i],(it,re)=>{if(re) renderReview()});
+}
+$("#discard").onclick=()=>{pending=[];pendingSet=null;renderReview();$("#status").textContent=""};
+
+/* ---------- 資料庫 ---------- */
+const reserved=[]; // 這次開啟頁面後已經用掉的編號,避免批次連續儲存時重複
+function nextCode(prefix,taken){
+  taken=[...taken,...reserved];
+  let max=0; for(const it of items) if(it.code?.startsWith(prefix+"-")) max=Math.max(max,parseInt(it.code.slice(prefix.length+1))||0);
+  for(const c of taken) if(c.startsWith(prefix+"-")) max=Math.max(max,parseInt(c.slice(prefix.length+1))||0);
+  return `${prefix}-${String(max+1).padStart(4,"0")}`;
+}
+function nextSetId(){let m=0;for(const it of items){const n=parseInt(String(it.setId||"").replace("SET-",""));if(n>m)m=n}
+  for(const c of reserved){if(c.startsWith("SET-")){const n=parseInt(c.slice(4));if(n>m)m=n}}
+  const id="SET-"+String(m+1).padStart(4,"0"); reserved.push(id); return id}
+async function saveItem(it){
+  const {keep,...body}=it; body.updatedAt=Date.now();
+  await IDB.put(body);
+  const i=items.findIndex(x=>x.code===body.code); if(i>=0) items[i]=body; else items.push(body);
+  renderLib();
+}
+$("#saveAll").onclick=async()=>{
+  const keep=pending.filter(x=>x.keep!==false); if(!keep.length){toast("沒有勾選任何單品");return}
+  $("#saveAll").disabled=true;
+  const setId=keep.length>1?nextSetId():""; const taken=[];
+  try{
+    for(const it of keep){
+      const code=nextCode(FILES[it.file].sheets[it.sheet].p,taken); taken.push(code); reserved.push(code);
+      await saveItem({...it,code,setId,setName:setId?pendingSet.name:"",source:pendingSet.source,status:0,imageFile:code+".png",createdAt:Date.now()});
+    }
+    toast(`已收入 ${keep.length} 件`);
+    curFile=keep[0].file; curSheet=keep[0].sheet;
+    pending=[];pendingSet=null;renderReview();photos.forEach(p=>URL.revokeObjectURL(p.url));photos=[];renderThumbs();$("#hint").value="";$("#status").textContent="";
+    renderLib();
+  }catch(e){toast(e?.code==="quota_exceeded"?"資料庫已滿":"儲存失敗,請再試一次")}
+  finally{$("#saveAll").disabled=false}
+};
+function inSheet(f,s){return items.filter(x=>x.file===f&&(!s||x.sheet===s))}
+function renderStats(){
+  const by=Object.keys(FILES).map(f=>`<span><b>${inSheet(f).length}</b>${FILES[f].n}</span>`).join("");
+  const done=items.filter(x=>(x.status||0)>=3).length;
+  $("#stats").innerHTML=`<span><b>${items.length}</b>件單品</span>${by}<span><b>${done}</b>已進遊戲</span>`;
+}
+function renderLib(){
+  renderStats();
+  $("#fileTabs").innerHTML=Object.entries(FILES).map(([f,F])=>`<button class="chipbtn" data-file="${f}" aria-pressed="${f===curFile}">${F.n}<span class="count">${inSheet(f).length}</span></button>`).join("");
+  if(!FILES[curFile].sheets[curSheet]) curSheet=Object.keys(FILES[curFile].sheets)[0];
+  $("#sheetTabs").innerHTML=Object.entries(FILES[curFile].sheets).map(([s,S])=>`<button class="chipbtn" data-sheet="${s}" aria-pressed="${s===curSheet}">${S.n}<span class="count">${inSheet(curFile,s).length}</span></button>`).join("");
+  document.querySelectorAll("[data-file]").forEach(b=>b.onclick=()=>{curFile=b.dataset.file;curSheet=Object.keys(FILES[curFile].sheets)[0];renderLib()});
+  document.querySelectorAll("[data-sheet]").forEach(b=>b.onclick=()=>{curSheet=b.dataset.sheet;renderLib()});
+  const q=$("#q").value.trim().toLowerCase(), fs=$("#fst").value;
+  const list=inSheet(curFile,curSheet).filter(it=>{
+    if(fs!==""&&(it.status||0)!==+fs) return false;
+    if(!q) return true;
+    return [it.name,it.subtype,it.colorMain,it.colorSub,it.material,it.code,it.setName,...(it.tags||[])].join(" ").toLowerCase().includes(q);
+  }).sort((a,b)=>String(a.code).localeCompare(String(b.code)));
+  $("#lib").innerHTML=list.length?list.map(it=>`<div class="li">
+      ${it.thumb?`<img src="${it.thumb}" alt="">`:`<span class="ph"></span>`}
+      <div style="min-width:0"><div class="nm">${esc(it.name)}</div>
+        <div class="meta">${esc(it.code)}・${esc(it.subtype)}・${esc(it.colorMain)}${it.setName?`・套裝 ${esc(it.setName)}`:""}・${esc(it.rarity)}</div>
+        <div class="tagrow">${(it.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></div>
+      <div class="acts"><span class="st st${it.status||0}">${STATUS[it.status||0]}</span>
+        <div class="row"><button class="btn sm" data-cp="${esc(it.code)}">複製提示詞</button><button class="btn sm" data-ed="${esc(it.code)}">編輯</button></div></div>
+    </div>`).join(""):`<div class="empty">${items.length?"這個分頁還沒有單品。":"資料庫是空的,從上方放入第一張穿搭照吧。"}</div>`;
+  document.querySelectorAll("[data-cp]").forEach(b=>b.onclick=async()=>{const it=items.find(x=>x.code===b.dataset.cp);const ta=document.createElement("textarea");ta.value=buildPrompt(it);try{await navigator.clipboard.writeText(ta.value);toast("提示詞已複製")}catch(e){openEditor(it)}});
+  document.querySelectorAll("[data-ed]").forEach(b=>b.onclick=()=>openEditor(items.find(x=>x.code===b.dataset.ed)));
+}
+$("#q").oninput=renderLib; $("#fst").onchange=renderLib;
+$("#fst").innerHTML+=STATUS.map((s,k)=>`<option value="${k}">${s}</option>`).join("");
+
+let editing=null;
+function openEditor(it){
+  editing=JSON.parse(JSON.stringify(it));
+  const dlg=$("#dlg");
+  $("#dlgIn").innerHTML=editorHTML(editing,0,"lib")+`<div class="row" style="margin-top:12px;justify-content:space-between">
+    <button class="btn danger" id="del">刪除</button><div class="row"><button class="btn" id="cancel">取消</button><button class="btn pri" id="ok">儲存</button></div></div>`;
+  bindEditor($("#dlgIn"),()=>editing,(x,re)=>{if(re){const keep=editing;openEditor(keep)}});
+  $("#cancel").onclick=()=>dlg.close();
+  $("#ok").onclick=async()=>{
+    const old=items.find(x=>x.code===editing.code);
+    if(old&&(old.file!==editing.file||old.sheet!==editing.sheet)){ // 換分頁要換編號
+      const newCode=nextCode(FILES[editing.file].sheets[editing.sheet].p,[]);
+      await removeItem(old.code); editing.code=newCode; editing.imageFile=newCode+".png";
+    }
+    try{await saveItem(editing);dlg.close();toast("已儲存")}catch(e){toast("儲存失敗")}
+  };
+  let armed=false;
+  $("#del").onclick=async()=>{ if(!armed){armed=true;$("#del").textContent="再按一次確認刪除";setTimeout(()=>{armed=false;const d=$("#del");if(d)d.textContent="刪除"},4000);return}
+    try{await removeItem(editing.code);dlg.close();toast("已刪除")}catch(e){toast("刪除失敗")} };
+  if(!dlg.open) dlg.showModal();
+}
+async function removeItem(code){
+  await IDB.del(code); items=items.filter(x=>x.code!==code); renderLib();
+}
+
+/* ---------- 匯出 Excel ---------- */
+function workbookFor(f){
+  const wb=XLSX.utils.book_new();
+  for(const [s,S] of Object.entries(FILES[f].sheets)){
+    const head=["編號","名稱","細類型","主色","副色","材質",...S.ex,...AXES.map(([k,l,r])=>`${l}↔${r}`),"風格標籤","適合場合","稀有度","價格","套裝編號","套裝名稱","參考來源","單品描述(英文)","GPT提示詞","製作進度","圖檔名稱","備註","建立日期"];
+    const rows=inSheet(f,s).sort((a,b)=>String(a.code).localeCompare(String(b.code))).map(it=>[
+      it.code,it.name,it.subtype,it.colorMain,it.colorSub,it.material,...S.ex.map(k=>it.extra?.[k]??""),
+      ...AXES.map(([k])=>it.attrs?.[k]??0),(it.tags||[]).join("、"),(it.occasions||[]).join("、"),it.rarity,it.price===""?"":Number(it.price)||it.price,
+      it.setId||"",it.setName||"",it.source||"",it.desc||"",buildPrompt(it),STATUS[it.status||0],it.imageFile||"",it.notes||"",
+      it.createdAt?new Date(it.createdAt).toLocaleDateString("zh-TW"):""]);
+    const ws=XLSX.utils.aoa_to_sheet([head,...rows]);
+    ws["!cols"]=head.map(h=>({wch:h==="GPT提示詞"?80:h==="單品描述(英文)"?50:h==="名稱"||h==="參考來源"?18:h.length>4?12:9}));
+    ws["!freeze"]={xSplit:2,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,ws,S.n.replace(/[\\/?*\[\]:]/g,"・").slice(0,31));
+  }
+  return wb;
+}
+const xbuf=f=>XLSX.write(workbookFor(f),{type:"array",bookType:"xlsx"});
+const stampName=()=>new Date().toISOString().slice(0,10);
+function blobToB64(blob){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(",")[1]);r.onerror=()=>no(r.error);r.readAsDataURL(blob)})}
+async function offer(filename,blob){
+  try{
+    const P=window.Capacitor?.Plugins;
+    if(P?.Filesystem&&P?.Share){ // 手機安裝版:存成檔案後叫出分享選單(可存到雲端硬碟或傳給自己)
+      const r=await P.Filesystem.writeFile({path:filename,data:await blobToB64(blob),directory:"CACHE"});
+      await P.Share.share({title:filename,url:r.uri,dialogTitle:"匯出檔案"}); return;
+    }
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  }catch(e){ if(!/cancel/i.test(String(e?.message||e))) toast("匯出失敗") }
+}
+$("#expOne").onclick=()=>{if(!window.XLSX){toast("Excel 元件尚未載入");return} offer(`衣帽間_${FILES[curFile].n}_${stampName()}.xlsx`,new Blob([xbuf(curFile)]))};
+$("#expAll").onclick=async()=>{
+  if(!window.XLSX||!window.JSZip){toast("匯出元件尚未載入");return}
+  const zip=new JSZip(); for(const f of Object.keys(FILES)) zip.file(`衣帽間_${FILES[f].n}.xlsx`,xbuf(f));
+  offer(`衣帽間素材_${stampName()}.zip`,await zip.generateAsync({type:"blob"}));
+};
+
+/* ---------- 批次模式 ---------- */
+let bRunning=false, bStopReq=false;
+function bLines(){return $("#batchIn").value.split(/\n/).map(s=>s.trim()).filter(Boolean)}
+$("#batchIn").oninput=()=>{const n=bLines().length;$("#bCount").textContent=n?`共 ${n} 套`:""};
+$("#bStop").onclick=()=>{bStopReq=true;$("#bStop").textContent="停止中…";$("#bStop").disabled=true};
+$("#bGo").onclick=async()=>{
+  if(bRunning) return;
+  if(!apiKey()){openSettings();toast("先在設定貼上 Gemini API 金鑰");return}
+  const lines=bLines(); if(!lines.length){toast("先寫至少一行描述");return}
+  bRunning=true; bStopReq=false;
+  $("#bGo").disabled=true; $("#go").disabled=true; $("#goText").disabled=true;
+  $("#bStop").classList.remove("hidden"); $("#bStop").disabled=false; $("#bStop").textContent="停止(做完目前這套後)";
+  $("#bList").innerHTML=lines.map((l,i)=>`<li data-b="${i}"><span>${esc(l)}</span><span class="r">等待中</span></li>`).join("");
+  const row=i=>document.querySelector(`[data-b="${i}"]`);
+  const mark=(i,cls,txt,detail)=>{const r=row(i);r.className=cls;r.querySelector(".r").textContent=txt;if(detail){let d=r.querySelector(".d");if(!d){d=document.createElement("span");d.className="d";r.appendChild(d)}d.textContent=detail}};
+  let okSets=0, okItems=0;
+  for(let i=0;i<lines.length;i++){
+    if(bStopReq){for(let j=i;j<lines.length;j++) mark(j,"","未執行");break}
+    mark(i,"run","設計中…");
+    let tries=0;
+    while(true){
+      try{
+        const res=await aiJSON(makePrompt(false,lines[i]),[]);
+        const list=(Array.isArray(res?.items)?res.items:[]).map(x=>normalize(x,"")).filter(Boolean);
+        if(!list.length){mark(i,"bad","沒有產出單品","可能是上方關掉了相關大項,或描述太簡短。");break}
+        const setName=String(res.setName||lines[i].slice(0,20));
+        const setId=list.length>1?nextSetId():""; const taken=[];
+        for(const it of list){
+          const code=nextCode(FILES[it.file].sheets[it.sheet].p,taken); taken.push(code); reserved.push(code);
+          await saveItem({...it,code,setId,setName:setId?setName:"",source:"批次:"+lines[i].slice(0,60),status:0,imageFile:code+".png",createdAt:Date.now()});
+        }
+        okSets++; okItems+=list.length;
+        mark(i,"ok",`完成 ${list.length} 件`,`${setName}:`+list.map(x=>x.name).join("、"));
+        break;
+      }catch(e){
+        const code=e?.code;
+        if(code==="rate_minute"&&tries<2){tries++; mark(i,"run","每分鐘次數到上限,等一分鐘…"); await new Promise(r=>setTimeout(r,62000)); mark(i,"run","重試中…"); continue}
+        mark(i,"bad","失敗",ERR[code]||"這套沒有成功,可以稍後單獨再跑一次。");
+        if(["no_key","bad_key","bad_model","rate_day","region","rate_minute"].includes(code)){ for(let k=i+1;k<lines.length;k++) mark(k,"","未執行"); i=lines.length; }
+        break;
+      }
+    }
+    if(i<lines.length-1) await new Promise(r=>setTimeout(r,4000)); // 放慢速度,避免撞到每分鐘上限
+  }
+  bRunning=false; $("#bGo").disabled=false; $("#bStop").classList.add("hidden");
+  $("#goText").disabled=false; $("#go").disabled=false;
+  toast(`批次結束:${okSets} 套、${okItems} 件單品已收入資料庫`);
+};
+
+/* ---------- 啟動 ---------- */
+renderCats(); renderLib();
+/* ---------- 設定 ---------- */
+const setDlg=$("#setDlg");
+function syncKeybar(){$("#keybar").classList.toggle("hidden",!!apiKey())}
+function openSettings(){
+  $("#keyIn").value=apiKey(); $("#keyStatus").textContent="";
+  const m=model(), known=["gemini-2.5-flash","gemini-2.5-flash-lite"].includes(m);
+  $("#modelIn").value=known?m:"custom"; $("#modelCustom").value=known?"":m; $("#modelCustom").classList.toggle("hidden",known);
+  if(!setDlg.open) setDlg.showModal();
+}
+$("#openSet").onclick=openSettings; $("#keyGo").onclick=openSettings; $("#setClose").onclick=()=>setDlg.close();
+$("#keyShow").onclick=()=>{const k=$("#keyIn");k.type=k.type==="password"?"text":"password";$("#keyShow").textContent=k.type==="password"?"顯示":"隱藏"};
+$("#modelIn").onchange=()=>$("#modelCustom").classList.toggle("hidden",$("#modelIn").value!=="custom");
+function saveSettings(){
+  const k=$("#keyIn").value.trim(); if(k) localStorage.setItem(KEY_K,k);
+  const m=$("#modelIn").value==="custom"?$("#modelCustom").value.trim():$("#modelIn").value; if(m) localStorage.setItem(KEY_M,m);
+  syncKeybar();
+}
+$("#keySave").onclick=()=>{saveSettings();$("#keyStatus").classList.remove("err");$("#keyStatus").textContent="已儲存。";};
+$("#keyDel").onclick=()=>{localStorage.removeItem(KEY_K);$("#keyIn").value="";syncKeybar();$("#keyStatus").textContent="金鑰已清除。"};
+$("#keyTest").onclick=async()=>{
+  saveSettings(); const st=$("#keyStatus"); st.classList.remove("err"); st.textContent="測試中…";
+  try{const r=await aiJSON('只回覆 JSON:{"ok":true}',[]); st.textContent=r?.ok?`連線成功,使用 ${model()}。`:"有回應,但格式不如預期,仍可試用。"}
+  catch(e){st.classList.add("err"); st.textContent=ERR[e?.code]||"測試失敗。"+(e?.message?`(${e.message})`:"")}
+};
+$("#bkOut").onclick=()=>offer(`衣帽間備份_${stampName()}.json`,new Blob([JSON.stringify({app:"kpop-clothes",ver:1,exported:new Date().toISOString(),items})],{type:"application/json"}));
+$("#bkIn").onclick=()=>$("#bkFile").click();
+$("#bkFile").onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{
+    const o=JSON.parse(await f.text()); if(o.app!=="kpop-clothes"||!Array.isArray(o.items)) throw 0;
+    let n=0; for(const it of o.items){ if(!it?.code) continue; const cur=items.find(x=>x.code===it.code);
+      if(!cur||(it.updatedAt||0)>(cur.updatedAt||0)){await IDB.put(it); n++} }
+    items=await IDB.all(); renderLib(); toast(`匯入完成,更新了 ${n} 件`);
+  }catch(err){toast("這不是衣帽間工坊的備份檔")}
+};
+$("#verNote").textContent="版本 "+(window.APP_VERSION||"開發版");
+if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
+
+/* ---------- 啟動 ---------- */
+(async()=>{
+  syncKeybar();
+  try{ await IDB.open(); items=await IDB.all(); navigator.storage?.persist?.(); $("#storeNote").textContent="資料存在這台裝置裡。換裝置時用「設定」裡的匯出、匯入備份同步。"; }
+  catch(e){ $("#storeNote").textContent="無法開啟本機資料庫,資料不會被保存。"; }
+  renderLib();
+})();
+</script>
+</body>
+</html>

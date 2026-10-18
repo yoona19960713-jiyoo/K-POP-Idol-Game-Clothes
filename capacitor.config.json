@@ -1,0 +1,6 @@
+{
+  "appId": "com.yoona.kpopclothes",
+  "appName": "衣帽間工坊",
+  "webDir": "www",
+  "android": { "backgroundColor": "#F6F1F4" }
+}
