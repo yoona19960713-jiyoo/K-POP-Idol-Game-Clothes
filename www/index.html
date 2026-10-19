@@ -144,6 +144,8 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
       <div id="soloBox" class="hidden"><label class="lbl">給誰</label><div class="cats" id="soloChips"></div></div>
       <label class="lbl">場合</label>
       <div class="cats" id="occChips"></div>
+      <label class="lbl">季節(可複選,不選就是四季皆宜)</label>
+      <div class="cats" id="seaChips"></div>
       <label class="lbl">參考照片(可不放)</label>
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="選擇或拖入圖片"><b>點這裡選照片</b>,或把圖片拖進來<br><span class="note">只參考衣物,不分析臉部。</span></div>
       <input type="file" id="file" accept="image/*" multiple class="hidden">
@@ -161,7 +163,7 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
     </section>
     <section>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">造型庫</h2><button class="btn sm pri" id="expAll">匯出 Excel</button></div>
-      <div class="filters" style="margin-top:12px"><input type="text" id="q" placeholder="搜尋名稱、概念、標籤"><select id="fOcc" aria-label="場合"><option value="">全部場合</option></select></div>
+      <div class="filters" style="margin-top:12px"><input type="text" id="q" placeholder="搜尋名稱、概念、標籤"><select id="fOcc" aria-label="場合"><option value="">全部場合</option></select><select id="fSea" aria-label="季節"><option value="">全部季節</option><option>春</option><option>夏</option><option>秋</option><option>冬</option></select></div>
       <div class="lib" id="lib"></div>
       <p class="note" id="storeNote"></p>
     </section>
@@ -183,7 +185,9 @@ dialog .in{padding:16px;overflow:auto;max-height:90vh}
         <div class="basebox" style="width:200px"><span id="curPic"></span><b id="curName"></b></div>
         <div style="flex:1;min-width:220px">
           <p class="note" style="margin-top:0">左邊是她目前的造型。下面點任一套「穿上」就會換過來;「生圖底模」是產生提示詞時要一起附給 GPT 的定案立繪。</p>
+          <p class="note">底模請用遊戲表情組那張<b>定案平常立繪</b>(灰底、白 T、平常表情)。練習服和日常服在遊戲裡會疊上她的表情,底圖不同的話臉會對不上。</p>
           <div class="basegrid"><div class="basebox" id="baseBox"></div></div>
+          <p class="note" id="dailyCnt"></p>
         </div>
       </div>
       <div class="lib" id="mLib" style="margin-top:12px"></div>
@@ -295,7 +299,19 @@ async function copyText(ta){
 }
 /* ---------- 造型設定 ---------- */
 const AXES=[["sweet","甜美","冷豔"],["pure","清純","性感"],["lively","活潑","優雅"],["fancy","華麗","簡約"],["retro","復古","未來"]];
-const OCC=["打歌舞台","演唱會","頒獎典禮","寫真","綜藝","機場","日常","練習"];
+const OCC=["打歌舞台","演唱會","頒獎典禮","寫真","綜藝","機場","練習","日常・居家","日常・外出","日常・睡衣"];
+/* 練習與日常類會用在遊戲的日常立繪(依地點換穿),臉部由遊戲另外疊表情 */
+const SEASONS=["春","夏","秋","冬"];
+const isDaily=o=>o==="練習"||String(o||"").startsWith("日常");
+const occList=cur=>cur&&!OCC.includes(cur)?[...OCC,cur]:OCC;
+const occLabel=o=>o==="日常"?"日常(舊分類,請改成居家/外出/睡衣)":o;
+const seasonText=a=>Array.isArray(a)&&a.length&&a.length<4?SEASONS.filter(s=>a.includes(s)).join("、"):"四季";
+const OCC_NOTE={
+  "練習":"在公司練習室穿的練習服:方便跳舞的運動上衣、運動褲或運動短褲、運動鞋,可以加薄外套或綁在腰上的襯衫;簡單耐穿,不要舞台感。",
+  "日常・居家":"在宿舍穿的居家服:寬鬆舒服的上衣、棉褲或居家短褲、襪子或室內拖鞋;放鬆的感覺,不要外出打扮,不要包包。",
+  "日常・外出":"休假或下班外出的私服:符合她個性的日常穿搭,可以有包包;比舞台樸素,像真實偶像的私服。",
+  "日常・睡衣":"睡覺穿的睡衣:成套、布料厚實不透明、樣式保守的家居睡衣(例如棉質長袖長褲或短袖短褲套裝),搭配室內拖鞋或襪子;不要絲質吊帶、不要短睡裙。"};
+const DAILY_RULE="- 這套會用在遊戲立繪,臉部之後會另外換表情:不要帽子、遮到眉毛的髮箍或瀏海配件、口罩、墨鏡、眼鏡、面紗,或任何遮到臉和眉毛的東西;髮夾、耳環、項鍊可以。";
 const RAR=["N","R","SR","SSR"];
 const TYPES={group:"團體服(全員)",solo:"個人造型"};
 const MEM_IDS=["m1","m2","m3","m4","m5"], MEM_DEF=["成員一","成員二","成員三","成員四","成員五"];
@@ -308,7 +324,7 @@ const PROFILES=[
 ];
 let members=MEM_IDS.map((id,i)=>({id,name:MEM_DEF[i],en:"",gen:"",profile:"",current:""}));
 let stdBase={img:"",marks:{}}; // 舊版欄位,保留相容
-let view="lib", lookType="group", soloId="m1", occ="打歌舞台";
+let view="lib", lookType="group", soloId="m1", occ="打歌舞台", seasons=[];
 const memberById=id=>members.find(m=>m.id===id);
 const mLabel=m=>m.name+(m.en?`(${m.en})`:"");
 const isLook=it=>it&&it.kind==="look";
@@ -332,7 +348,7 @@ function pickImage(cb,max=1536){
 function lookPrompt(lk,mid){
   const o=lk.members?.[mid]; if(!o) return "";
   const group=lk.type==="group"&&lk.base?` This is her own version of a coordinated K-pop group outfit; the shared design language of the set is: ${lk.base}.`:"";
-  return `Use the attached image as the exact base. Keep her face, hairstyle, hair color, expression, body, proportions, pose, framing, art style, lighting and plain light gray background completely identical. Change only her clothing, shoes and accessories.${group} Her outfit: ${o.outfit} Everything is opaque and fully lined, styled as tasteful K-pop idol fashion that fits her body naturally, with realistic folds and drape. No logos, brand names or printed text. Full body visible from head to toe.`;
+  return `Use the attached image as the exact base. Keep her face, hairstyle, hair color, expression, body, proportions, pose, framing, art style, lighting and plain light gray background completely identical. Change only her clothing, shoes and accessories.${group} Her outfit: ${o.outfit} Everything is opaque and fully lined, styled as tasteful K-pop idol fashion that fits her body naturally, with realistic folds and drape. No logos, brand names or printed text. ${isDaily(lk.occasion)?" Do not add any hat, cap, mask, sunglasses, glasses, or headband or hair accessory over the eyebrows; keep the whole face and both eyebrows fully visible.":""} Full body visible from head to toe.`;
 }
 
 /* ---------- Gemini 設計 ---------- */
@@ -341,6 +357,7 @@ function designPrompt(hasPhotos,hint,type,targets){
   return `你是 K-POP 女團的造型總監。${hasPhotos?"附上的圖片是穿搭參考,只看衣物與配件,不要描述照片中人物是誰或五官。":""}
 請設計一套${type==="group"?"團體造型:全員共用同一個主題、配色與材質語彙,但每位成員的版本都依她的定位、身材、代表色和個性做一點小巧思的不同(例如剪裁、長度、細節、配件或點綴色),站在一起要協調又能一眼分出誰是誰;C 位的成員可以稍微華麗一點":"個人造型"}。
 場合:${occ}
+${OCC_NOTE[occ]?`場合說明:${OCC_NOTE[occ]}\n`:""}季節:${seasonText(seasons)}(布料厚薄、長短與外套都要符合季節)
 使用者說明:${hint||"(無,請依場合自由發揮)"}
 成員資料:
 ${prof}
@@ -348,7 +365,7 @@ ${prof}
 規則:
 - outfit 用英文,從頭到腳寫完整:上身、下身或連身、外套(若有)、鞋子、襪子或褲襪(若有)、飾品與小配件,寫出顏色、材質、剪裁、長度、裝飾細節;50~110 個英文字。不要改變髮型與髮色,髮飾可以。
 - 不要提到人物長相、姿勢或背景。
-- 生圖器容易把豐滿身材判定成性感內容,所以絕對不要用 corset、bustier、lingerie、bra、sheer、see-through、transparent、tight、skin-tight、low-cut、plunging、sexy、revealing 這類字;改用 structured bodice、fitted stage top、sweetheart neckline、opaque fabric、layered tulle overlay 等中性用語,並寫出布料不透明。
+${isDaily(occ)?DAILY_RULE+"\n":""}- 生圖器容易把豐滿身材判定成性感內容,所以絕對不要用 corset、bustier、lingerie、bra、sheer、see-through、transparent、tight、skin-tight、low-cut、plunging、sexy、revealing 這類字;改用 structured bodice、fitted stage top、sweetheart neckline、opaque fabric、layered tulle overlay 等中性用語,並寫出布料不透明。
 - twist 用繁體中文一句話,說明這位成員版本的巧思。
 - base 用英文 20~50 字,描述整套共用的設計語彙(個人造型也要寫)。
 - attrs 五個軸,整數 -3~3:sweet(負=甜美,正=冷豔)、pure(負=清純,正=性感)、lively(負=活潑,正=優雅)、fancy(負=華麗,正=簡約)、retro(負=復古,正=未來)。
@@ -366,6 +383,8 @@ function renderChips(){
   document.querySelectorAll("[data-ty]").forEach(b=>b.onclick=()=>{lookType=b.dataset.ty;renderChips()});
   document.querySelectorAll("[data-so]").forEach(b=>b.onclick=()=>{soloId=b.dataset.so;renderChips()});
   document.querySelectorAll("[data-oc]").forEach(b=>b.onclick=()=>{occ=b.dataset.oc;renderChips()});
+  $("#seaChips").innerHTML=SEASONS.map(s=>`<button class="chipbtn" data-se="${s}" aria-pressed="${seasons.includes(s)}">${s}</button>`).join("");
+  document.querySelectorAll("[data-se]").forEach(b=>b.onclick=()=>{const v=b.dataset.se;seasons=seasons.includes(v)?seasons.filter(x=>x!==v):SEASONS.filter(x=>x===v||seasons.includes(x));renderChips()});
 }
 function renderThumbs(){
   $("#thumbs").innerHTML=photos.map((p,i)=>`<figure><img src="${p.url}" alt=""><button data-rm="${i}" aria-label="移除">×</button></figure>`).join("");
@@ -393,7 +412,7 @@ $("#go").onclick=async()=>{
     const r=await aiJSON(designPrompt(!!photos.length,hint,lookType,targets),photos.map(p=>p.file),ctl.signal);
     const ms={}; for(const m of targets){const x=(r.members||[]).find(y=>y.id===m.id)||{}; ms[m.id]={outfit:String(x.outfit||""),twist:String(x.twist||""),img:"",status:0}}
     const attrs={}; AXES.forEach(([k])=>attrs[k]=Math.max(-3,Math.min(3,Math.round(+r.attrs?.[k]||0))));
-    pendingLook={kind:"look",type:lookType,target:lookType==="solo"?soloId:"",occasion:occ,name:String(r.setName||"未命名造型"),concept:String(r.concept||""),base:String(r.base||""),
+    pendingLook={kind:"look",type:lookType,target:lookType==="solo"?soloId:"",occasion:occ,seasons:[...seasons],name:String(r.setName||"未命名造型"),concept:String(r.concept||""),base:String(r.base||""),
       attrs,tags:(Array.isArray(r.tags)?r.tags:[]).map(String).slice(0,6),rarity:RAR.includes(r.rarity)?r.rarity:"R",notes:"",source:hint||"照片",members:ms};
     st.textContent=""; renderReview();
   }catch(e){ if(e?.code==="cancelled"){st.textContent="已停止。"} else {st.textContent=ERR[e?.code]||"設計失敗,請再試一次。";st.classList.add("err")} }
@@ -408,8 +427,9 @@ function lookEditorHTML(lk,mode){
     <input type="text" data-f="name" value="${esc(lk.name)}" aria-label="名稱" style="font-weight:700">
     ${lk.code?`<div class="code">${esc(lk.code)}・${TYPES[lk.type]||""}</div>`:""}
     <div class="grid2">
-      <label>場合<select data-f="occasion">${OCC.map(o=>`<option ${o===lk.occasion?"selected":""}>${o}</option>`).join("")}</select></label>
+      <label>場合<select data-f="occasion">${occList(lk.occasion).map(o=>`<option value="${o}" ${o===lk.occasion?"selected":""}>${occLabel(o)}</option>`).join("")}</select></label>
       <label>稀有度<select data-f="rarity">${RAR.map(r=>`<option ${r===lk.rarity?"selected":""}>${r}</option>`).join("")}</select></label>
+      <div style="grid-column:1/-1"><span class="lbl">季節(不選就是四季皆宜)</span><div class="cats">${SEASONS.map(x=>`<button type="button" class="chipbtn" data-sea="${x}" aria-pressed="${(lk.seasons||[]).includes(x)}">${x}</button>`).join("")}</div></div>
       <label style="grid-column:1/-1">概念<input type="text" data-f="concept" value="${esc(lk.concept)}"></label>
       <label style="grid-column:1/-1">風格標籤(頓號分隔)<input type="text" data-f="tags" value="${esc((lk.tags||[]).join("、"))}"></label>
       <label style="grid-column:1/-1">共用設計語彙(英文)<input type="text" data-f="base" value="${esc(lk.base)}"></label>
@@ -433,8 +453,9 @@ function bindLookEditor(root,lk,onChange){
   const card=root.querySelector(".card");
   const refreshPrompts=()=>root.querySelectorAll("[data-mid]").forEach(b=>b.querySelector("[data-mp]").value=lookPrompt(lk,b.dataset.mid));
   card.querySelectorAll("[data-f]").forEach(el=>el.addEventListener(el.tagName==="SELECT"?"change":"input",()=>{
-    const f=el.dataset.f; lk[f]=f==="tags"?el.value.split(/[、,,]\s*/).map(s=>s.trim()).filter(Boolean):el.value; if(f==="base") refreshPrompts();
+    const f=el.dataset.f; lk[f]=f==="tags"?el.value.split(/[、,,]\s*/).map(s=>s.trim()).filter(Boolean):el.value; if(f==="base"||f==="occasion") refreshPrompts();
   }));
+  card.querySelectorAll("[data-sea]").forEach(b=>b.onclick=()=>{const v=b.dataset.sea,a=new Set(lk.seasons||[]);a.has(v)?a.delete(v):a.add(v);lk.seasons=SEASONS.filter(x=>a.has(x));b.setAttribute("aria-pressed",String(a.has(v)))});
   card.querySelectorAll("[data-ax]").forEach(el=>el.addEventListener("input",()=>{const v=+el.value;lk.attrs[el.dataset.ax]=v;el.nextElementSibling.nextElementSibling.textContent=(v>0?"+":"")+v}));
   root.querySelectorAll("[data-mid]").forEach(b=>{
     const mid=b.dataset.mid, o=lk.members[mid];
@@ -477,14 +498,15 @@ function renderStats(){
 }
 function renderLib(){
   renderStats();
-  const q=$("#q").value.trim().toLowerCase(), fo=$("#fOcc").value;
-  const list=looks().filter(l=>(!fo||l.occasion===fo)&&(!q||[l.name,l.concept,l.code,...(l.tags||[])].join(" ").toLowerCase().includes(q)))
+  fillOccFilter();
+  const q=$("#q").value.trim().toLowerCase(), fo=$("#fOcc").value, fs=$("#fSea").value;
+  const list=looks().filter(l=>(!fo||l.occasion===fo)&&(!fs||seasonText(l.seasons)==="四季"||(l.seasons||[]).includes(fs))&&(!q||[l.name,l.concept,l.code,...(l.tags||[])].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>String(b.code).localeCompare(String(a.code)));
   $("#lib").innerHTML=list.length?list.map(l=>{
     const ms=Object.keys(l.members||{});
     return `<div class="card">
       <div class="row" style="justify-content:space-between;align-items:flex-start"><div style="min-width:0"><div class="nm" style="font-weight:700">${esc(l.name)}</div>
-        <div class="meta note">${esc(l.code)}・${TYPES[l.type]||""}${l.type==="solo"?"・"+esc(memberById(l.target)?.name||""):""}・${esc(l.occasion)}・${esc(l.rarity)}</div>
+        <div class="meta note">${esc(l.code)}・${TYPES[l.type]||""}${l.type==="solo"?"・"+esc(memberById(l.target)?.name||""):""}・${esc(occLabel(l.occasion))}${seasonText(l.seasons)!=="四季"?"・"+seasonText(l.seasons):""}・${esc(l.rarity)}</div>
         <div class="note">${esc(l.concept)}</div>
         <div class="tagrow">${(l.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div></div>
         <div class="acts" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end"><span class="vs vs${doneOf(l)===ms.length?3:doneOf(l)?1:0}">已生成 ${doneOf(l)}/${ms.length}</span><button class="btn sm" data-ed="${esc(l.code)}">開啟</button></div></div>
@@ -492,8 +514,11 @@ function renderLib(){
     </div>`}).join(""):`<div class="empty">${looks().length?"沒有符合的造型。":"造型庫是空的,從上面設計第一套吧。"}</div>`;
   document.querySelectorAll("[data-ed]").forEach(b=>b.onclick=()=>openLook(b.dataset.ed));
 }
-$("#q").oninput=renderLib; $("#fOcc").onchange=renderLib;
-$("#fOcc").innerHTML+=OCC.map(o=>`<option>${o}</option>`).join("");
+$("#q").oninput=renderLib; $("#fOcc").onchange=renderLib; $("#fSea").onchange=renderLib;
+function fillOccFilter(){ // 舊分類「日常」還有造型時也列出來,方便找出來改
+  const sel=$("#fOcc"), cur=sel.value, extra=[...new Set(looks().map(l=>l.occasion).filter(o=>o&&!OCC.includes(o)))];
+  sel.innerHTML=`<option value="">全部場合</option>`+[...OCC,...extra].map(o=>`<option value="${o}">${occLabel(o)}</option>`).join(""); sel.value=cur;
+}
 
 function adaptPrompt(lk,src,m){
   const o=lk.members[src], sm=memberById(src);
@@ -569,10 +594,14 @@ function renderMem(){
   $("#baseBox").innerHTML=`${m.gen?`<img src="${m.gen}" alt="">`:`<span class="ph"></span>`}<b>生圖底模</b><div class="row"><button class="btn sm" id="upGen">上傳</button>${m.gen?`<button class="btn sm danger" id="rmGen">移除</button>`:""}</div>`;
   $("#upGen").onclick=()=>pickImage(async url=>{m.gen=url;await saveMeta();renderMem()});
   if($("#rmGen")) $("#rmGen").onclick=async()=>{m.gen="";await saveMeta();renderMem()};
+  const DC=[["練習","練習服"],["日常・居家","居家"],["日常・外出","外出"],["日常・睡衣","睡衣"]];
+  $("#dailyCnt").innerHTML="遊戲日常衣櫃(已生成):"+DC.map(([o,n])=>{const k=looks().filter(l=>l.occasion===o&&l.members?.[m.id]?.img);
+    const by=SEASONS.map(x=>k.filter(l=>seasonText(l.seasons)==="四季"||(l.seasons||[]).includes(x)).length);
+    return `${n} <b>${k.length}</b>${k.length?`(${SEASONS.map((x,i)=>x+by[i]).join(" ")})`:""}`}).join("・");
   const mine=looks().filter(l=>l.members?.[m.id]).sort((a,b)=>String(b.code).localeCompare(String(a.code)));
   $("#mLib").innerHTML=mine.length?mine.map(l=>{const o=l.members[m.id], on=m.current===l.code;
     return `<div class="li ${on?"on":""}" style="grid-template-columns:72px 1fr auto">${o.img?`<img src="${o.img}" alt="" style="width:72px;height:108px">`:`<span class="ph" style="width:72px;height:108px"></span>`}
-      <div style="min-width:0"><div class="nm">${esc(l.name)}</div><div class="meta">${esc(l.code)}・${esc(l.occasion)}・${TYPES[l.type]||""}</div>
+      <div style="min-width:0"><div class="nm">${esc(l.name)}</div><div class="meta">${esc(l.code)}・${esc(occLabel(l.occasion))}${seasonText(l.seasons)!=="四季"?"・"+seasonText(l.seasons):""}・${TYPES[l.type]||""}</div>
         <div class="note">${esc(o.twist||l.concept)}</div></div>
       <div class="acts"><span class="vs vs${o.img?3:0}">${o.img?"已生成":"待生成"}</span>
         <div class="row" style="justify-content:flex-end"><button class="btn sm" data-cp="${esc(l.code)}">複製提示詞</button><button class="btn sm" data-upl="${esc(l.code)}">上傳圖</button>
@@ -589,9 +618,9 @@ $("#mProfile").oninput=e=>{const m=memberById(view);m.profile=e.target.value;cle
 /* ---------- 匯出 Excel(每套造型 × 每位成員一列) ---------- */
 $("#expAll").onclick=()=>{
   if(!window.XLSX){toast("Excel 元件尚未載入");return}
-  const head=["編號","造型名稱","類型","場合","概念",...AXES.map(([k,l,r])=>`${l}↔${r}`),"風格標籤","稀有度","成員","小巧思","服裝描述(英文)","GPT提示詞","生成狀態","共用設計語彙","備註"];
+  const head=["編號","造型名稱","類型","場合","季節","概念",...AXES.map(([k,l,r])=>`${l}↔${r}`),"風格標籤","稀有度","成員","小巧思","服裝描述(英文)","GPT提示詞","生成狀態","共用設計語彙","備註"];
   const rows=[]; for(const l of looks().sort((a,b)=>String(a.code).localeCompare(String(b.code)))) for(const [mid,o] of Object.entries(l.members||{}))
-    rows.push([l.code,l.name,TYPES[l.type]||"",l.occasion,l.concept,...AXES.map(([k])=>l.attrs?.[k]??0),(l.tags||[]).join("、"),l.rarity,memberById(mid)?.name||mid,o.twist,o.outfit,lookPrompt(l,mid),o.img?"已生成":"待生成",l.base,l.notes||""]);
+    rows.push([l.code,l.name,TYPES[l.type]||"",l.occasion,seasonText(l.seasons),l.concept,...AXES.map(([k])=>l.attrs?.[k]??0),(l.tags||[]).join("、"),l.rarity,memberById(mid)?.name||mid,o.twist,o.outfit,lookPrompt(l,mid),o.img?"已生成":"待生成",l.base,l.notes||""]);
   const ws=XLSX.utils.aoa_to_sheet([head,...rows]); ws["!cols"]=head.map(h=>({wch:h==="GPT提示詞"?80:h==="服裝描述(英文)"?60:h.length>4?14:10}));
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"造型");
   offer(`衣帽間造型_${stampName()}.xlsx`,new Blob([XLSX.write(wb,{type:"array",bookType:"xlsx"})]));
