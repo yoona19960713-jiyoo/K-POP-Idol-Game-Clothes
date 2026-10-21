@@ -869,6 +869,23 @@ document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==
 setTimeout(()=>checkUpdate(false),3000);
 if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
 
+/* ---------- 從 Claude 創作室直接收造型(網址 #import=…,不用下載檔案) ---------- */
+async function takeHashImport(){
+  const m=location.hash.match(/^#import=(z?)\.([A-Za-z0-9_-]+)$/); if(!m) return false;
+  history.replaceState(null,"",location.pathname+location.search);
+  try{
+    let bytes=Uint8Array.from(atob(m[2].replace(/-/g,"+").replace(/_/g,"/")),c=>c.charCodeAt(0));
+    if(m[1]==="z") bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    const o=JSON.parse(new TextDecoder().decode(bytes)); if(o.app!=="kpop-clothes"||!Array.isArray(o.items)) throw 0;
+    let n=0; for(const it of o.items){ if(!it?.code) continue; const cur=items.find(x=>x.code===it.code);
+      if(!cur||(it.updatedAt||0)>(cur.updatedAt||0)){await IDB.put(it); await syMark(it.code); n++} }
+    items=await IDB.all();
+    const msg=n?`已收到 Claude 創作室送來的 ${n} 套造型`+(syAuth()?"":"(這個瀏覽器還沒登入雲端同步,登入後才會同步到手機)"):"這些造型已經在衣帽間裡了";
+    setTimeout(()=>toast(msg),700); return true;
+  }catch(e){ setTimeout(()=>toast("收到的造型資料無法讀取,請改用匯出檔案"),700); return false }
+}
+window.addEventListener("hashchange",async()=>{ if(await takeHashImport()) showView(view) });
+
 /* ---------- 啟動 ---------- */
 (async()=>{
   syncKeybar();
@@ -878,6 +895,7 @@ if(window.Capacitor?.isNativePlatform?.()) $("#apkBox").classList.add("hidden");
     $("#storeNote").textContent="資料存在這台裝置裡;在「設定」登入雲端同步後,網頁版和手機會自動同步。"; }
   catch(e){ $("#storeNote").textContent="無法開啟本機資料庫,資料不會被保存。"; }
   const before=members.map(m=>m.profile).join("|"); fillProfiles(); if(members.map(m=>m.profile).join("|")!==before) saveMeta();
+  await takeHashImport();
   renderNav(); renderAll(); syRenderSettings(); syncNow(false);
 })();
 </script>
